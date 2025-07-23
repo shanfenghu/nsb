@@ -1,0 +1,23 @@
+[project]
+name = "nsb"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+# Core dependencies required to run the NSB model and baselines
+dependencies = [
+    "numpy",
+    "scipy",
+    "torch",
+    "pandas",
+    "scikit-learn",
+    "pytest",
+    "matplotlib",
+    "seaborn"
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["nsb"]
