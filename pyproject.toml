@@ -12,7 +12,9 @@ dependencies = [
     "scikit-learn",
     "pytest",
     "matplotlib",
-    "seaborn"
+    "seaborn",
+    "tqdm",
+    "rdata"
 ]
 
 [build-system]
