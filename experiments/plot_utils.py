@@ -12,6 +12,7 @@ NSB_COLORS = {
     'poisson': '#FFA500',            # Poisson baseline (Orange)
     'negative_binomial': '#9370DB',  # Negative Binomial baseline (Medium Purple)
     'softmax_nn': '#A0522D',         # Softmax NN baseline (Sienna)
+    'softmax_nn_(fair)': '#FF69B4',  # Softmax NN (Fair) baseline (Hot Pink) 
     'nsb_subcritical': '#4682B4',    # Sub-critical NSB (Steel Blue)
     'fit_line': '#DC143C'            # Fitting line color (Crimson Red)
 }
@@ -33,6 +34,7 @@ def setup_plot_style():
         "mathtext.fontset": "stix",
         "axes.labelweight": "bold",
         "axes.titleweight": "bold",
+        "lines.linewidth": 2.5,
     })
 
 def save_figure(fig, filename: str, output_dir: str = "figures"):
