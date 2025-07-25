@@ -1,0 +1,8 @@
+Statistic,Value
+Number of Outbreaks (SARS & MERS),14
+Total Individuals (Nodes),639
+Total Transmissions (Edges),625
+Mean Offspring Count,0.978
+Variance of Offspring Count,24.1
+Maximum Offspring Count,84
+Percentage of Zeros,80.6%
