@@ -21,14 +21,14 @@ def main():
     
     # --- Configuration ---
     seed = 42
-    n_train = 500
-    k_max_plot = 800 # Plot up to a very large integer
+    n_train = 5000
+    k_max_plot = 1000 # Plot up to a very large integer
     
     # Define the gapped, bimodal distribution
     dist_params = {
         'mu1': 3,     # First mode (small counts)
         'mu2': 700,   # Second mode (very large counts)
-        'w': 0.99     # 99% of data is from the first mode
+        'w': 0.5     # 99% of data is from the first mode
     }
     
     # --- Generate Data ---
@@ -45,7 +45,7 @@ def main():
 
     print("Training NSB model...")
     nsb_model = NSB(hidden_dim=64)
-    nsb_model.fit(train_data, epochs=50)
+    nsb_model.fit(train_data, epochs=100, batch_size=128)
     
     # --- Generate PMFs for Plotting ---
     k_vals = np.arange(k_max_plot + 1)
