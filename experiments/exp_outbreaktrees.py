@@ -7,7 +7,7 @@ The script generates:
 2.  A LaTeX table for the main benchmark results (Table 2).
 3.  A LaTeX table for the ablation study (Table 3).
 4.  A three-panel figure analyzing the results, including a rank-frequency
-    plot with a spectral analysis inset.
+    plot with a spectral analysis inset (Figure 5).
 """
 import pandas as pd
 import numpy as np
@@ -54,10 +54,16 @@ def get_eigenvalues(model: NSB) -> np.ndarray:
     weight_matrix = model.cell.fc_h.weight.data.cpu().numpy()
     return np.linalg.eigvals(weight_matrix)
 
+def kl_divergence(p: np.ndarray, q: np.ndarray) -> float:
+    """Calculates the KL divergence D_KL(P || Q) for discrete distributions."""
+    p = p + 1e-10
+    q = q + 1e-10
+    return np.sum(p * np.log(p / q))
+
 # --- Main Experiment Loop ---
 def run_experiment():
     """Runs the full real-world case study experiment."""
-    print("--- Running Experiment 4: Real-World Case Study ---")
+    print("--- Running Experiment: Real-World Case Study ---")
     CONFIG['output_dir_results'].mkdir(parents=True, exist_ok=True)
     
     results = []
@@ -65,55 +71,79 @@ def run_experiment():
     for seed in tqdm(CONFIG['seeds'], desc="Running seeds"):
         train_data, test_data = load_and_split_data(CONFIG['data_path'], CONFIG['test_size'], seed)
         
-        # Define models for this run
         fair_hidden_dim = 27
         models = {
             'NSB (Ours)': NSB(hidden_dim=CONFIG['nn_params']['hidden_dim']),
-            'NSB (no hidden layer)': NSB(hidden_dim=0), # Ablation model
+            # 'NSB (no hidden layer)': NSB(hidden_dim=0),
             'Softmax NN (Fair)': SoftmaxNN(k_max=CONFIG['nn_params']['k_max'], hidden_dim=fair_hidden_dim),
             'Softmax NN': SoftmaxNN(k_max=CONFIG['nn_params']['k_max'], hidden_dim=CONFIG['nn_params']['hidden_dim']),
             'Negative Binomial': NegativeBinomialMLE(),
             'Poisson': PoissonMLE()
         }
 
+        # --- Define the tail for KL divergence calculation ---
+        tail_start_idx = int(np.median(train_data)) + 1
+        k_max_eval = test_data.max()
+        
+        # Empirical tail distribution from test data
+        test_tail_counts = test_data[test_data >= tail_start_idx]
+        if len(test_tail_counts) > 0:
+            empirical_tail_pmf = np.bincount(test_tail_counts, minlength=k_max_eval + 1)[tail_start_idx:]
+            empirical_tail_pmf = empirical_tail_pmf / empirical_tail_pmf.sum()
+        else:
+            empirical_tail_pmf = None
+
         for model_name, model in models.items():
             torch.manual_seed(seed)
             np.random.seed(seed)
             
             try:
-                # Train model
                 if hasattr(model, 'fit'):
                     if isinstance(model, (NSB, SoftmaxNN)):
                         model.fit(train_data, epochs=CONFIG['nn_params']['epochs'], lr=CONFIG['nn_params']['lr'])
                     else:
                         model.fit(train_data)
                 
-                # Evaluate performance and inference time
                 start_time = time.time()
                 log_likelihood = model.log_likelihood(test_data)
                 end_time = time.time()
-                inference_time = (end_time - start_time) / len(test_data) * 1000 # ms per instance
+                inference_time = (end_time - start_time) / len(test_data) * 1000
 
-                # Get parameter count
+                # Calculate tail KL divergence
+                tail_kl = np.nan
+                if empirical_tail_pmf is not None:
+                    if isinstance(model, SoftmaxNN):
+                        pmf_full = model.predict_pmf()
+                        learned_pmf = np.zeros(k_max_eval + 1)
+                        len_to_copy = min(len(pmf_full), len(learned_pmf))
+                        learned_pmf[:len_to_copy] = pmf_full[:len_to_copy]
+                    elif hasattr(model, 'predict_pmf'): # This will now only be the NSB
+                        learned_pmf = model.predict_pmf(k_max=k_max_eval)
+                    else: # For Poisson and NegativeBinomial
+                        learned_pmf = model.pmf(np.arange(k_max_eval + 1))
+                    
+                    learned_tail_pmf = learned_pmf[tail_start_idx:]
+                    if learned_tail_pmf.sum() > 1e-9: # Avoid division by zero
+                        learned_tail_pmf = learned_tail_pmf / learned_tail_pmf.sum()
+                        tail_kl = kl_divergence(empirical_tail_pmf, learned_tail_pmf)
+
                 if isinstance(model, NSB):
-                    num_params = count_parameters(model.cell) + model.h0.numel() if model.hidden_dim > 0 else 2 # Special case for no hidden layer
+                    num_params = count_parameters(model.cell) + model.h0.numel() if model.hidden_dim > 0 else 2
                 elif isinstance(model, SoftmaxNN):
                     num_params = count_parameters(model.model)
-                elif isinstance(model, NegativeBinomialMLE):
-                    num_params = 2
-                else: # Poisson
-                    num_params = 1
+                else:
+                    num_params = 2 if isinstance(model, NegativeBinomialMLE) else 1
 
             except (ValueError, RuntimeError) as e:
-                print(f"    - WARNING: Could not run {model_name}. Reason: {e}")
-                log_likelihood, inference_time, num_params = -np.inf, -1, -1
+                log_likelihood, inference_time, num_params, tail_kl = -np.inf, -1, -1, np.inf
 
             results.append({
                 'Model': model_name,
                 'Seed': seed,
                 'Test Log-Likelihood': log_likelihood,
                 'Num. Params': num_params,
-                'Inference Time (ms)': inference_time
+                'Inference Time (ms)': inference_time,
+                'Tail KL Divergence': tail_kl
             })
 
     results_df = pd.DataFrame(results)
@@ -126,123 +156,107 @@ def run_experiment():
 def create_tables(results_df: pd.DataFrame):
     """Generates and saves the LaTeX tables for the paper."""
     
-    # --- Table 2: Main Benchmark Results ---
+    # --- Main Benchmark Results ---
     main_models = ['NSB (Ours)', 'Softmax NN (Fair)', 'Softmax NN', 'Negative Binomial', 'Poisson']
     main_df = results_df[results_df['Model'].isin(main_models)]
     
     summary = main_df.groupby('Model').agg({
         'Test Log-Likelihood': ['mean', 'std'],
+        'Tail KL Divergence': ['mean', 'std'],
         'Num. Params': 'first',
         'Inference Time (ms)': 'mean'
     }).reindex(main_models)
 
     best_ll = summary[('Test Log-Likelihood', 'mean')].max()
+    best_kl = summary[('Tail KL Divergence', 'mean')].min()
 
-    latex_str = "\\begin{tabular}{lccc}\n"
+    latex_str = "\\begin{tabular}{lcccc}\n"
     latex_str += "\\toprule\n"
-    latex_str += "Model & Test Log-Likelihood & Num. Params & Avg. Inference Time (ms) \\\\\n"
+    latex_str += "Model & Test LL $\\uparrow$ & Tail KL $\\downarrow$ & Num. Params & Time (ms) \\\\\n"
     latex_str += "\\midrule\n"
     for model_name, row in summary.iterrows():
-        ll_mean = row[('Test Log-Likelihood', 'mean')]
-        ll_std = row[('Test Log-Likelihood', 'std')]
+        ll_mean, ll_std = row[('Test Log-Likelihood', 'mean')], row[('Test Log-Likelihood', 'std')]
+        kl_mean, kl_std = row[('Tail KL Divergence', 'mean')], row[('Tail KL Divergence', 'std')]
         num_params = int(row[('Num. Params', 'first')])
         inf_time = row[('Inference Time (ms)', 'mean')]
         
-        cell_str = f"${ll_mean:.2f} \\pm {ll_std:.2f}$"
-        if ll_mean == best_ll:
-            cell_str = f"\\textbf{{{cell_str}}}"
+        ll_str = f"${ll_mean:.2f} \\pm {ll_std:.2f}$"
+        if ll_mean == best_ll: ll_str = f"\\textbf{{{ll_str}}}"
         
-        latex_str += f"{model_name} & {cell_str} & {num_params:,} & {inf_time:.2f} \\\\\n"
+        kl_str = f"${kl_mean:.2f} \\pm {kl_std:.2f}$"
+        if kl_mean == best_kl: kl_str = f"\\textbf{{{kl_str}}}"
+
+        latex_str += f"{model_name} & {ll_str} & {kl_str} & {num_params:,} & {inf_time:.2f} \\\\\n"
     latex_str += "\\bottomrule\n\\end{tabular}"
     
     table_path = CONFIG['output_dir_results'] / "real_world_benchmark_table.tex"
     with open(table_path, 'w') as f: f.write(latex_str)
     print(f"\nLaTeX Table 2 saved to '{table_path}'")
 
-    # --- Table 3: Ablation Study ---
-    ablation_models = ['NSB (Ours)', 'NSB (no hidden layer)']
-    ablation_df = results_df[results_df['Model'].isin(ablation_models)]
-    
-    ablation_summary = ablation_df.groupby('Model').agg({
-        'Test Log-Likelihood': ['mean', 'std'],
-        'Num. Params': 'first'
-    }).reindex(ablation_models)
-
-    latex_str_ablation = "\\begin{tabular}{lcc}\n"
-    latex_str_ablation += "\\toprule\n"
-    latex_str_ablation += "Model & Test Log-Likelihood & Num. Params \\\\\n"
-    latex_str_ablation += "\\midrule\n"
-    for model_name, row in ablation_summary.iterrows():
-        ll_mean = row[('Test Log-Likelihood', 'mean')]
-        ll_std = row[('Test Log-Likelihood', 'std')]
-        num_params = int(row[('Num. Params', 'first')])
-        cell_str = f"${ll_mean:.2f} \\pm {ll_std:.2f}$"
-        if model_name == 'NSB (Ours)':
-            cell_str = f"\\textbf{{{cell_str}}}"
-        latex_str_ablation += f"{model_name.replace('NSB (', 'NSB (with ')} & {cell_str} & {num_params:,} \\\\\n"
-    latex_str_ablation += "\\bottomrule\n\\end{tabular}"
-
-    table_path_ablation = CONFIG['output_dir_results'] / "ablation_study_table.tex"
-    with open(table_path_ablation, 'w') as f: f.write(latex_str_ablation)
-    print(f"LaTeX Table 3 saved to '{table_path_ablation}'")
-
-def create_real_world_figure(results_df: pd.DataFrame):
+def create_real_world_figure():
     """Generates the three-panel figure for the real-world analysis."""
     print("\n--- Generating Figure: Real-World Distribution Analysis ---")
     setup_plot_style()
     fig, axes = plt.subplots(1, 3, figsize=(18, 5.5), constrained_layout=True)
     
     plot_seed = CONFIG['seeds'][0]
-    train_data, _ = load_and_split_data(CONFIG['data_path'], CONFIG['test_size'], plot_seed)
+    train_data, test_data = load_and_split_data(CONFIG['data_path'], CONFIG['test_size'], plot_seed)
     
     # --- Panel (a): Overall Fit ---
     ax1 = axes[0]
-    max_val_hist = int(np.percentile(train_data, 98))
+    max_val_hist = int(np.percentile(test_data, 98))
     bins = np.arange(max_val_hist + 2) - 0.5
-    ax1.hist(train_data, bins=bins, density=True, color='gray', alpha=0.3, label='Empirical Data')
+    ax1.hist(test_data, bins=bins, density=True, color='gray', alpha=0.3, label='Empirical Data')
     
-    fair_hidden_dim = 27 # Calculated to match NSB's ~4.3k params
     models_to_plot = {
         'NSB (Ours)': NSB(hidden_dim=CONFIG['nn_params']['hidden_dim']),
-        # 'Softmax NN': SoftmaxNN(k_max=CONFIG['nn_params']['k_max'], hidden_dim=CONFIG['nn_params']['hidden_dim']),
-        # 'Softmax NN (Fair)': SoftmaxNN(k_max=CONFIG['nn_params']['k_max'], hidden_dim=fair_hidden_dim),
+        'Softmax NN': SoftmaxNN(k_max=CONFIG['nn_params']['k_max']),
         'Negative Binomial': NegativeBinomialMLE(),
-        'Poisson': PoissonMLE(),
+        # 'Poisson': PoissonMLE(),
     }
     
     k_vals_plot = np.arange(max_val_hist + 1)
     for model_name, model in models_to_plot.items():
         torch.manual_seed(plot_seed); np.random.seed(plot_seed)
-        model.fit(train_data)
-        if hasattr(model, 'predict_pmf'):
+        if isinstance(model, (NSB, SoftmaxNN)):
+            model.fit(train_data, epochs=CONFIG['nn_params']['epochs'], lr=CONFIG['nn_params']['lr'])
+        else:
+            model.fit(train_data)
+        if isinstance(model, SoftmaxNN):
+            pmf_full = model.predict_pmf()
+            pmf = np.zeros(max_val_hist + 1)
+            len_to_copy = min(len(pmf_full), len(pmf))
+            pmf[:len_to_copy] = pmf_full[:len_to_copy]
+        elif hasattr(model, 'predict_pmf'):
             pmf = model.predict_pmf(k_max=max_val_hist)
         else:
             pmf = model.pmf(k_vals_plot)
-        # if isinstance(model, SoftmaxNN):
-        #     pmf_full = model.predict_pmf()
-        #     pmf = np.zeros(max_val_hist + 1)
-        #     len_to_copy = min(len(pmf_full), len(pmf))
-        #     pmf[:len_to_copy] = pmf_full[:len_to_copy]
-        # elif hasattr(model, 'predict_pmf'):
-        #     pmf = model.predict_pmf(k_max=max_val_hist)
-        # else:
-        #     pmf = model.pmf(max_val_hist)
         color_key = model_name.lower().replace(' (ours)','').replace(' ','_')
         ax1.plot(k_vals_plot, pmf, label=model_name, color=NSB_COLORS[color_key])
         
     ax1.set_title("(a) Overall Distributional Fit", weight='bold')
-    ax1.set_xlabel("Offspring Count (k)"); ax1.set_ylabel("Probability"); ax1.legend()
+    ax1.set_xlabel("Offspring Count (k)"); ax1.set_ylabel("Probability (log scale)"); ax1.legend()
+    ax1.set_yscale('log') 
 
     # --- Panel (b): Log-Log Tail Analysis ---
     ax2 = axes[1]
-    counts, freqs = np.unique(train_data, return_counts=True)
-    probs = freqs / len(train_data)
+    counts, freqs = np.unique(test_data, return_counts=True)
+    probs = freqs / len(test_data)
     ax2.plot(counts, probs, 'o', color=NSB_COLORS['truth'], label='Empirical Data', markersize=4)
     
-    nsb_model = models_to_plot['NSB (Ours)'] # Use the one we just trained
     k_max_tail = train_data.max()
-    nsb_pmf = nsb_model.predict_pmf(k_max=k_max_tail)
-    ax2.plot(np.arange(k_max_tail + 1), nsb_pmf, '--', color=NSB_COLORS['nsb'], label='NSB Fit')
+    for model_name, model in models_to_plot.items():
+        if isinstance(model, SoftmaxNN):
+            pmf_full = model.predict_pmf()
+            pmf = np.zeros(k_max_tail + 1)
+            len_to_copy = min(len(pmf_full), len(pmf))
+            pmf[:len_to_copy] = pmf_full[:len_to_copy]
+        elif hasattr(model, 'predict_pmf'):
+            pmf = model.predict_pmf(k_max=k_max_tail)
+        else:
+            pmf = model.pmf(np.arange(k_max_tail + 1))
+        color_key = model_name.lower().replace(' (ours)','').replace(' ','_')
+        ax2.plot(np.arange(k_max_tail + 1), pmf, '--', label=model_name, color=NSB_COLORS[color_key])
     
     ax2.set_title("(b) Log-Log Analysis of the Tail", weight='bold')
     ax2.set_xlabel("Offspring Count (k) (log scale)"); ax2.set_ylabel("Probability (log scale)")
@@ -254,9 +268,21 @@ def create_real_world_figure(results_df: pd.DataFrame):
     ranks = np.arange(1, len(sorted_probs) + 1)
     ax3.plot(ranks, sorted_probs, 'o', color=NSB_COLORS['truth'], label='Empirical Data', markersize=4)
     
-    nsb_pmf_sorted = np.sort(nsb_pmf[nsb_pmf > 1e-9])[::-1]
-    nsb_ranks = np.arange(1, len(nsb_pmf_sorted) + 1)
-    ax3.plot(nsb_ranks, nsb_pmf_sorted, '--', color=NSB_COLORS['nsb'], label='NSB Fit')
+    for model_name, model in models_to_plot.items():
+        if isinstance(model, SoftmaxNN):
+            pmf_full = model.predict_pmf()
+            pmf = np.zeros(k_max_tail + 1)
+            len_to_copy = min(len(pmf_full), len(pmf))
+            pmf[:len_to_copy] = pmf_full[:len_to_copy]
+        elif hasattr(model, 'predict_pmf'):
+            pmf = model.predict_pmf(k_max=k_max_tail)
+        else:
+            pmf = model.pmf(np.arange(k_max_tail + 1))
+        
+        pmf_sorted = np.sort(pmf[pmf > 1e-9])[::-1]
+        ranks_model = np.arange(1, len(pmf_sorted) + 1)
+        color_key = model_name.lower().replace(' (ours)','').replace(' ','_')
+        ax3.plot(ranks_model, pmf_sorted, '--', label=model_name, color=NSB_COLORS[color_key])
 
     ax3.set_title("(c) Rank-Frequency Analysis (Zipf Plot)", weight='bold')
     ax3.set_xlabel("Rank (log scale)"); ax3.set_ylabel("Probability (log scale)")
@@ -264,20 +290,19 @@ def create_real_world_figure(results_df: pd.DataFrame):
 
     # --- Inset for Spectral Analysis ---
     from matplotlib.patches import Circle
-    axins = ax3.inset_axes([0.4, 0.4, 0.55, 0.55])
+    nsb_model = models_to_plot['NSB (Ours)']
+    axins = ax3.inset_axes([0.02, 0.02, 0.45, 0.45])
     unit_circle = Circle((0, 0), 1, color='black', fill=False, linestyle='--', linewidth=1)
     axins.add_patch(unit_circle)
     eigenvalues = get_eigenvalues(nsb_model)
     axins.scatter(eigenvalues.real, eigenvalues.imag, marker='o', color=NSB_COLORS['nsb'], alpha=0.7, s=20)
-    axins.set_title("Learned Spectral Radius", fontsize=10)
+    axins.set_title("NSB's Spectral Radius", fontsize=10)
     axins.set_xticks([]); axins.set_yticks([])
     axins.set_aspect('equal', adjustable='box')
 
     save_figure(fig, "real_world_analysis")
 
-
 if __name__ == "__main__":
     results_df = run_experiment()
     create_tables(results_df)
-    create_real_world_figure(results_df)
-
+    create_real_world_figure()
