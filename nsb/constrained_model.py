@@ -12,30 +12,29 @@ from nsb.model import NSB, _NSBCell
 
 class ConstrainedNSB(NSB):
     """
-    An extension of the NSB model that enforces a constraint on the spectral
+    An extension of the NSB model that enforces a cap on the spectral
     radius of the recurrent weight matrix (W_h) during training.
 
     Attributes:
-        constraint (str): The type of constraint to apply. Can be
-                          'subcritical' (rho < 1) or 'critical' (rho = 1).
+        max_radius (float): The maximum allowable spectral radius for W_h.
     """
 
-    def __init__(self, hidden_dim: int = 64, constraint: str = 'subcritical'):
+    def __init__(self, hidden_dim: int = 64, max_radius: float = 0.99):
         """
         Initializes the ConstrainedNSB model.
 
         Args:
             hidden_dim (int, optional): The size of the RNN's hidden state.
                                         Defaults to 64.
-            constraint (str, optional): The constraint type. Must be either
-                                        'subcritical' or 'critical'.
-                                        Defaults to 'subcritical'.
+            max_radius (float, optional): The maximum allowable spectral radius
+                                          (i.e., the cap on singular values).
+                                          Defaults to 0.99.
         """
         super().__init__(hidden_dim)
         
-        if constraint not in ['subcritical', 'critical']:
-            raise ValueError("Constraint must be either 'subcritical' or 'critical'.")
-        self.constraint = constraint
+        if not isinstance(max_radius, (float, int)) or max_radius <= 0:
+            raise ValueError("max_radius must be a positive number.")
+        self.max_radius = max_radius
 
     def _enforce_constraint(self):
         """
@@ -43,20 +42,13 @@ class ConstrainedNSB(NSB):
         using Singular Value Decomposition (SVD) projection.
         This is called after each gradient update step.
         """
-        if self.constraint == 'subcritical':
-            max_sv = 0.8
-        elif self.constraint == 'critical':
-            max_sv = 1.0
-        else:
-            return # Should not happen due to __init__ check
-
         with torch.no_grad():
             W_h = self.cell.fc_h.weight
             # Perform Singular Value Decomposition (SVD)
             U, S, Vh = torch.linalg.svd(W_h, full_matrices=False)
             
-            # The singular values are the spectral norms. We cap them.
-            S_clamped = torch.clamp(S, max=max_sv)
+            # The singular values are the spectral norms. We cap them at max_radius.
+            S_clamped = torch.clamp(S, max=self.max_radius)
             
             # Reconstruct the weight matrix with the clamped singular values
             W_h_constrained = U @ torch.diag(S_clamped) @ Vh
@@ -84,7 +76,7 @@ class ConstrainedNSB(NSB):
         self.cell.train()
         for epoch in range(epochs):
             total_loss = 0
-            pbar = tqdm(loader, desc=f"Epoch {epoch+1}/{epochs} ({self.constraint})", leave=False)
+            pbar = tqdm(loader, desc=f"Epoch {epoch+1}/{epochs} (rho<={self.max_radius})", leave=False)
             for batch_counts in pbar:
                 batch_counts = batch_counts[0].to(self.device)
                 optimizer.zero_grad()
@@ -102,4 +94,5 @@ class ConstrainedNSB(NSB):
                 pbar.set_postfix(loss=f"{loss.item():.4f}")
             
             avg_loss = total_loss / len(loader)
-            print(f"Epoch {epoch+1}/{epochs} ({self.constraint}), Average Loss: {avg_loss:.4f}")
+            print(f"Epoch {epoch+1}/{epochs} (rho<={self.max_radius}), Avg Loss: {avg_loss:.4f}")
+
