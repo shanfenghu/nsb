@@ -1,5 +1,6 @@
 """
-Unit tests for the Constrained Neural Stick-Breaking (NSB) process model.
+Unit tests for the refactored Constrained Neural Stick-Breaking (NSB)
+process model.
 """
 import pytest
 import numpy as np
@@ -16,16 +17,6 @@ def heavy_tailed_data() -> np.ndarray:
     rng = np.random.default_rng(42)
     return rng.negative_binomial(n=2, p=0.1, size=256)
 
-@pytest.fixture
-def subcritical_model() -> ConstrainedNSB:
-    """An instance of the subcritical constrained model."""
-    return ConstrainedNSB(hidden_dim=16, constraint='subcritical')
-
-@pytest.fixture
-def critical_model() -> ConstrainedNSB:
-    """An instance of the critical constrained model."""
-    return ConstrainedNSB(hidden_dim=16, constraint='critical')
-
 # --- Helper Function ---
 def get_spectral_radius(model: ConstrainedNSB) -> float:
     """Calculates the spectral radius of the recurrent weight matrix."""
@@ -35,79 +26,66 @@ def get_spectral_radius(model: ConstrainedNSB) -> float:
 
 # --- Test Cases ---
 
-def test_initialization_subcritical(subcritical_model: ConstrainedNSB):
-    """Tests correct initialization for the subcritical model."""
-    assert subcritical_model.constraint == 'subcritical'
-    assert not hasattr(subcritical_model.cell.fc_h, 'weight_orig')
+def test_initialization():
+    """Tests correct initialization for the constrained model."""
+    model = ConstrainedNSB(hidden_dim=16, max_radius=0.9)
+    assert model.max_radius == 0.9
+    assert isinstance(model.cell, nn.Module)
 
-def test_initialization_critical(critical_model: ConstrainedNSB):
-    """Tests correct initialization for the critical model."""
-    assert critical_model.constraint == 'critical'
-    assert not hasattr(critical_model.cell.fc_h, 'weight_orig')
+@pytest.mark.parametrize("invalid_radius", [0, -1.0, "string"])
+def test_initialization_invalid_radius(invalid_radius):
+    """Tests that an invalid max_radius raises a ValueError."""
+    with pytest.raises(ValueError):
+        ConstrainedNSB(max_radius=invalid_radius)
 
-def test_initialization_invalid_constraint():
-    """Tests that an invalid constraint string raises a ValueError."""
-    with pytest.raises(ValueError, match="Constraint must be either 'subcritical' or 'critical'"):
-        ConstrainedNSB(constraint='invalid_constraint')
-
-def test_enforce_subcritical_constraint_works():
+@pytest.mark.parametrize("target_radius", [0.5, 0.99, 1.0, 1.5])
+def test_enforce_constraint_works(target_radius: float):
     """
-    A critical test to ensure the SVD projection correctly caps the spectral radius.
+    A critical test to ensure the SVD projection correctly caps the spectral
+    radius at the target_radius.
     """
-    model = ConstrainedNSB(hidden_dim=16, constraint='subcritical')
+    model = ConstrainedNSB(hidden_dim=16, max_radius=target_radius)
     
+    # Manually set the weight matrix to have a spectral radius > target_radius + 1
     with torch.no_grad():
-        W_h = torch.randn(16, 16) * 2
+        W_h = torch.randn(16, 16) * (target_radius + 2)
         model.cell.fc_h.weight.data.copy_(W_h)
     
-    assert get_spectral_radius(model) > 1.0
-    model._enforce_constraint()
-    assert get_spectral_radius(model) <= 0.999 + 1e-6
-
-def test_enforce_critical_constraint_works():
-    """
-    A new test to ensure the SVD projection works for the critical case.
-    """
-    model = ConstrainedNSB(hidden_dim=16, constraint='critical')
-
-    with torch.no_grad():
-        W_h = torch.randn(16, 16) * 2
-        model.cell.fc_h.weight.data.copy_(W_h)
-
-    assert get_spectral_radius(model) > 1.0
-    model._enforce_constraint()
-    assert get_spectral_radius(model) <= 1.0 + 1e-6
-
-def test_fit_subcritical_maintains_constraint(subcritical_model: ConstrainedNSB, heavy_tailed_data: np.ndarray):
-    """
-    Tests that after a full training run, the subcritical model's
-    spectral radius is less than 1.
-    """
-    subcritical_model.fit(heavy_tailed_data, epochs=2)
-    final_radius = get_spectral_radius(subcritical_model)
-    assert final_radius <= 0.999 + 1e-6
-
-def test_fit_critical_maintains_constraint(critical_model: ConstrainedNSB, heavy_tailed_data: np.ndarray):
-    """
-    Tests that after a full training run, the critical model's
-    spectral radius is at most 1.
-    """
-    critical_model.fit(heavy_tailed_data, epochs=2)
-    final_radius = get_spectral_radius(critical_model)
-    assert final_radius <= 1.0 + 1e-6
-
-def test_constrained_model_can_still_predict(critical_model: ConstrainedNSB, heavy_tailed_data: np.ndarray):
-    """
-    Ensures that the constrained models inherit and correctly use the
-    inference methods from the parent NSB class.
-    """
-    critical_model.fit(heavy_tailed_data, epochs=2)
+    # Ensure the radius is indeed larger before the constraint
+    assert get_spectral_radius(model) > target_radius
     
-    pmf = critical_model.predict_pmf(k_max=10)
+    # Apply the constraint
+    model._enforce_constraint()
+    
+    # Check that the radius is now <= target_radius
+    assert get_spectral_radius(model) <= target_radius + 1e-6
+
+@pytest.mark.parametrize("target_radius", [0.8, 1.0])
+def test_fit_maintains_constraint(target_radius: float, heavy_tailed_data: np.ndarray):
+    """
+    Tests that after a full training run, the model's spectral radius
+    respects the specified max_radius cap.
+    """
+    model = ConstrainedNSB(hidden_dim=16, max_radius=target_radius)
+    model.fit(heavy_tailed_data, epochs=2)
+    final_radius = get_spectral_radius(model)
+    assert final_radius <= target_radius + 1e-6
+
+def test_constrained_model_can_still_predict(heavy_tailed_data: np.ndarray):
+    """
+    Ensures that the constrained model can still be trained and used for
+    inference, inheriting correctly from the parent NSB class.
+    """
+    model = ConstrainedNSB(hidden_dim=16, max_radius=0.99)
+    model.fit(heavy_tailed_data, epochs=2)
+    
+    # Test predict_pmf
+    pmf = model.predict_pmf(k_max=10)
     assert pmf.shape == (11,)
     assert np.all(pmf >= 0)
     assert 0.9 < np.sum(pmf) <= 1.0
     
-    ll = critical_model.log_likelihood(heavy_tailed_data[:10])
+    # Test log_likelihood
+    ll = model.log_likelihood(heavy_tailed_data[:10])
     assert isinstance(ll, float)
     assert np.isfinite(ll)
