@@ -1,0 +1,13 @@
+\begin{tabular}{lcccccc}
+\toprule
+ & \multicolumn{2}{c}{Poisson} & \multicolumn{2}{c}{Negative Binomial} & \multicolumn{2}{c}{Zero-Inflated NB} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} 
+Model & Test LL $\uparrow$ & Tail KL $\downarrow$ & Test LL $\uparrow$ & Tail KL $\downarrow$ & Test LL $\uparrow$ & Tail KL $\downarrow$ \\
+\midrule
+NSB (Ours) & $-1.946 \pm 0.001$ & $0.002 \pm 0.003$ & $-3.775 \pm 0.004$ & $0.006 \pm 0.004$ & \textbf{$-2.444 \pm 0.002$} & \textbf{$0.008 \pm 0.003$} \\
+Softmax NN (Fair) & $-1.947 \pm 0.001$ & $0.006 \pm 0.000$ & $-3.781 \pm 0.002$ & $0.024 \pm 0.001$ & $-2.447 \pm 0.002$ & $0.018 \pm 0.000$ \\
+Softmax NN & $-1.947 \pm 0.002$ & $0.004 \pm 0.001$ & $-3.783 \pm 0.001$ & $0.027 \pm 0.002$ & $-2.448 \pm 0.002$ & $0.019 \pm 0.001$ \\
+Negative Binomial & \textbf{$-1.945 \pm 0.000$} & $0.000 \pm 0.000$ & \textbf{$-3.767 \pm 0.000$} & \textbf{$0.000 \pm 0.000$} & $-2.626 \pm 0.000$ & $0.346 \pm 0.000$ \\
+Poisson & $-1.945 \pm 0.000$ & \textbf{$0.000 \pm 0.000$} & $-6.277 \pm 0.000$ & $2.610 \pm 0.000$ & $-9.091 \pm 0.000$ & $4.363 \pm 0.000$ \\
+\bottomrule
+\end{tabular}
