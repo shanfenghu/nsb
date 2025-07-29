@@ -29,32 +29,10 @@ from plot_utils import setup_plot_style, save_figure, NSB_COLORS
 from utils import count_parameters
 
 # --- Configuration ---
-# CONFIG = {
-#     'seeds': list(range(10)),
-#     'n_train': 50000,
-#     'n_test': 10000,
-#     'output_dir_results': Path("results"),
-#     'output_dir_figures': Path("figures"),
-#     'distributions': {
-#         'Poisson': {'mu': 3},
-#         'Binomial': {'n': 20, 'p': 0.2},
-#         'Negative Binomial': {'n': 5, 'p': 0.5},
-#         'Mixture': {'mu1': 2, 'mu2': 15, 'w': 0.5},
-#         'Zero-Inflated': {'mu': 3, 'omega': 0.5} # 50% extra zeros
-#     },
-#     'nn_params': {
-#         'epochs': 100,
-#         'lr': 1e-3,
-#         'batch_size': 128,
-#         'hidden_dim': 64,
-#         'k_max': 150 # For SoftmaxNN
-#     }
-# }
-
 CONFIG = {
     'seeds': list(range(5)),
-    'n_train': 50000,
-    'n_test': 10000,
+    'n_train': 5000,
+    'n_test': 1000,
     'output_dir_results': Path("results"),
     'output_dir_figures': Path("figures"),
     'distributions': {
