@@ -8,6 +8,9 @@ from pathlib import Path
 #    Colors are chosen to be distinct and professional.
 NSB_COLORS = {
     'nsb': '#3CB371',                # Main model color (Green)
+    'nsb_gru': '#4169E1',            # NSB-GRU (Royal Blue)
+    'nsb_lstm': '#00CED1',           # NSB-LSTM (Dark Turquoise)
+    'nsb_attention': '#C71585',      # NSB-Attention (Medium Violet Red)
     'truth': '#2F4F4F',              # Ground truth (Dark Slate Gray)
     'poisson': '#FFA500',            # Poisson baseline (Orange)
     'negative_binomial': '#9370DB',  # Negative Binomial baseline (Medium Purple)
@@ -26,6 +29,7 @@ def setup_plot_style():
         "font.family": "serif",
         "text.usetex": False,
         "font.size": 14,
+        "mathtext.default": "regular",  # Allow LaTeX-style formatting without full LaTeX
         "axes.titlesize": 16,
         "axes.labelsize": 14,
         "xtick.labelsize": 12,
