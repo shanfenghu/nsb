@@ -58,13 +58,18 @@ class NSB:
         h0 (nn.Parameter): The learnable initial hidden state (h_{-1}).
         device (torch.device): The device (CPU or CUDA) the model runs on.
     """
-    def __init__(self, hidden_dim: int = 64):
+    def __init__(self, hidden_dim: int = 64, init_identity: bool = False):
         """
         Initializes the NSB model.
 
         Args:
             hidden_dim (int, optional): The size of the RNN's hidden state.
                                         Defaults to 64.
+            init_identity (bool, optional): If True, initializes the hidden state
+                                           transition matrix W_h as Identity with small
+                                           noise. This places the model at the criticality
+                                           boundary (ρ=1) from the start, helping it learn
+                                           heavy tails more effectively. Defaults to False.
         """
         self.hidden_dim = hidden_dim
         self.cell = _NSBCell(hidden_dim)
@@ -73,6 +78,16 @@ class NSB:
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.cell.to(self.device)
         self.h0 = self.h0.to(self.device)
+        
+        # Identity-Centered Initialization (IRNN)
+        if init_identity:
+            with torch.no_grad():
+                # Initialize W_h as Identity
+                self.cell.fc_h.weight.copy_(torch.eye(hidden_dim, device=self.device))
+                # Add a tiny bit of noise to break symmetry
+                self.cell.fc_h.weight.add_(torch.randn_like(self.cell.fc_h.weight) * 0.01)
+                # Initialize bias to zero
+                self.cell.fc_h.bias.fill_(0)
 
     def _compute_log_probs(self, counts: torch.Tensor) -> torch.Tensor:
         """
