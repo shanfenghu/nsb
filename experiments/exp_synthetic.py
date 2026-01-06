@@ -122,8 +122,8 @@ def run_experiments():
             # NSBGRU: hidden_dim=27 (4,591 params)
             # NSBLSTM: hidden_dim=23 (4,486 params)
             # NSBAttention: hidden_dim=19, max_k=150 (4,409 params)
-            # SoftmaxNN (Fair): hidden_dim=27 (original, kept for reproducibility)
-            fair_hidden_dim = 27  # Original value, kept for reproducibility
+            # SoftmaxNN (Fair): hidden_dim=28 (4,435 params)
+            fair_hidden_dim = 28
             nn_models = {
                 'NSB': NSB(hidden_dim=CONFIG['nn_params']['hidden_dim']),
                 'NSB-GRU': NSBGRU(hidden_dim=27),
