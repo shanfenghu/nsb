@@ -56,6 +56,7 @@ def create_results_table(results_df: pd.DataFrame):
     latex_str += " & \\multicolumn{2}{c}{Poisson} & \\multicolumn{2}{c}{Negative Binomial} & \\multicolumn{2}{c}{Zero-Inflated NB} \\\\\n"
     latex_str += "\\cmidrule(lr){2-3} \\cmidrule(lr){4-5} \\cmidrule(lr){6-7} \n"
     latex_str += "Model & Test LL $\\uparrow$ & Tail KL $\\downarrow$ & Test LL $\\uparrow$ & Tail KL $\\downarrow$ & Test LL $\\uparrow$ & Tail KL $\\downarrow$ \\\\\n\\midrule\n"
+    # Note: Requires xcolor package in LaTeX preamble: \usepackage{xcolor}
 
     for model_name, row in summary.iterrows():
         latex_str += f"{model_name}"
@@ -66,8 +67,11 @@ def create_results_table(results_df: pd.DataFrame):
             ll_str = f"${ll_mean:.3f} \\pm {ll_std:.3f}$"
             kl_str = f"${kl_mean:.3f} \\pm {kl_std:.3f}$"
             
-            if ll_mean == summary['ll_mean'][dist_name].max(): ll_str = f"\\textbf{{{ll_str}}}"
-            if kl_mean == summary['kl_mean'][dist_name].min(): kl_str = f"\\textbf{{{kl_str}}}"
+            # Highlight best results in bold and blue
+            if ll_mean == summary['ll_mean'][dist_name].max(): 
+                ll_str = f"\\textcolor{{blue}}{{\\textbf{{{ll_str}}}}}"
+            if kl_mean == summary['kl_mean'][dist_name].min(): 
+                kl_str = f"\\textcolor{{blue}}{{\\textbf{{{kl_str}}}}}"
             
             latex_str += f" & {ll_str} & {kl_str}"
         latex_str += " \\\\\n"
