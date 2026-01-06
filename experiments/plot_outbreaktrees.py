@@ -250,13 +250,41 @@ def create_real_world_figure():
 
     # --- Inset for Spectral Analysis ---
     nsb_model = models_to_plot['NSB']
-    axins = ax3.inset_axes([0.02, 0.02, 0.45, 0.45])
+    axins = ax3.inset_axes([0.08, 0.06, 0.45, 0.45])
+    
+    # Draw unit circle
     unit_circle = Circle((0, 0), 1, color='black', fill=False, linestyle='--', linewidth=1)
     axins.add_patch(unit_circle)
+    
+    # Draw axes through origin
+    axins.axhline(y=0, color='gray', linestyle='-', linewidth=0.5, alpha=0.5)
+    axins.axvline(x=0, color='gray', linestyle='-', linewidth=0.5, alpha=0.5)
+    
+    # Get eigenvalues and plot them
     eigenvalues = get_eigenvalues(nsb_model)
     axins.scatter(eigenvalues.real, eigenvalues.imag, marker='o', color=NSB_COLORS['nsb'], alpha=0.7, s=20)
+    
+    # Find eigenvalues outside the unit circle and annotate them
+    for i, eig in enumerate(eigenvalues):
+        magnitude = np.abs(eig)
+        if magnitude > 1.0:
+            # Annotate with a small offset to avoid overlapping with the point
+            axins.annotate(f'{magnitude:.2f}', 
+                          xy=(eig.real, eig.imag),
+                          xytext=(5, 5), textcoords='offset points',
+                          fontsize=8, color='red', weight='bold',
+                          bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='red'))
+    
+    # Set axis labels
+    axins.set_xlabel('Re', fontsize=9, labelpad=2)
+    axins.set_ylabel('Im', fontsize=9, labelpad=2)
+    
+    # Set ticks to show a few key values
+    axins.set_xticks([-1, 0, 1])
+    axins.set_yticks([-1, 0, 1])
+    axins.tick_params(labelsize=7)
+    
     axins.set_title("NSB's Spectral Radius", fontsize=10)
-    axins.set_xticks([]); axins.set_yticks([])
     axins.set_aspect('equal', adjustable='box')
 
     save_figure(fig, "real_world_analysis")
