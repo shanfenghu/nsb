@@ -10,6 +10,8 @@ from nsb.gru_model import NSBGRU
 from nsb.lstm_model import NSBLSTM
 from nsb.attention_model import NSBAttention
 from nsb.softmax_nn import SoftmaxNN
+from nsb.negative_binomial import NegativeBinomialMLE
+from nsb.poisson import PoissonMLE
 
 
 def count_parameters(model):
@@ -53,9 +55,21 @@ def count_parameters(model):
         # For SoftmaxNN, count model parameters
         return sum(p.numel() for p in model.model.parameters())
     
+    elif isinstance(model, NegativeBinomialMLE):
+        # Negative Binomial has 2 parameters: r_ and p_
+        return 2
+    
+    elif isinstance(model, PoissonMLE):
+        # Poisson has 1 parameter: lambda_
+        return 1
+    
     else:
         # Fallback for standard PyTorch modules
-        return sum(p.numel() for p in model.parameters() if p.requires_grad)
+        try:
+            return sum(p.numel() for p in model.parameters() if p.requires_grad)
+        except AttributeError:
+            # If model doesn't have parameters() method, return 0
+            return 0
 
 
 def find_best_hidden_dim(model_class, target_params, model_kwargs=None, search_range=(1, 512)):
