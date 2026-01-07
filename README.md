@@ -9,7 +9,7 @@ This repository contains the official implementation for the KDD 2025 manuscript
 
 -   **Novel Model:** A full PyTorch implementation of the Neural Stick-Breaking (NSB) process.
 -   **Baselines:** Implementations of strong baselines, including Poisson MLE, Negative Binomial MLE, and a Softmax Neural Network.
--   **Reproducibility:** Scripts to reproduce all experiments and figures from the paper.
+-   **Reproducibility:** Scripts to reproduce all experiments and generate figures.
 -   **Data Processing:** Utilities to process the raw `outbreaktrees` dataset.
 -   **Testing:** A comprehensive suite of unit tests to ensure code correctness.
 
@@ -19,7 +19,7 @@ This repository contains the official implementation for the KDD 2025 manuscript
 .
 ├── data/                 # Holds raw and processed data
 ├── experiments/          # Scripts to run experiments and generate figures
-├── figures/              # Generated figures for the paper
+├── figures/              # Generated figures
 ├── nsb/                  # Core model and baseline implementations
 ├── results/              # Generated CSV results and LaTeX tables
 ├── scripts/              # Helper scripts (e.g., data processing in R)
