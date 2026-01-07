@@ -2,8 +2,8 @@
 This script generates plots and tables from the experimental results.
 
 The script generates:
-1.  A compact, revised LaTeX-formatted performance table for the paper.
-2.  A two-panel figure showing the learning dynamics of Test Log-Likelihood and
+1.  A LaTeX-formatted performance table.
+2.  A figure showing the learning dynamics of Test Log-Likelihood and
     Tail KL Divergence for each model.
 """
 import numpy as np
@@ -29,7 +29,7 @@ CONFIG = {
 
 # --- Table and Figure Generation ---
 def create_results_table(results_df: pd.DataFrame):
-    """Generates and saves the revised LaTeX table."""
+    """Generates and saves the LaTeX table."""
     # Map old model names from CSV to new display names
     model_name_mapping = {
         'NSB (Ours)': 'NSB',
@@ -82,7 +82,7 @@ def create_results_table(results_df: pd.DataFrame):
     print(f"\nLaTeX Table saved to '{table_path}'")
 
 def create_dynamics_figure(results_df: pd.DataFrame):
-    """Generates the two-panel learning dynamics figure."""
+    """Generates the learning dynamics figure."""
     print("\n--- Generating Figure: Learning Dynamics on Noisy Data ---")
     setup_plot_style()
     fig, axes = plt.subplots(1, 3, figsize=(21, 6), constrained_layout=True)

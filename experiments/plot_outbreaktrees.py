@@ -2,12 +2,10 @@
 This script generates plots and tables from the real-world experiment results.
 
 The script generates:
-1.  A LaTeX table for the main benchmark results (Table 2).
+1.  A LaTeX table for the main benchmark results.
 2.  A figure with multiple panels analyzing the results:
-    - Panels (a), (b), (c): Distribution analysis including a rank-frequency
-      plot with a spectral analysis inset
-    - Panels (d), (e): Dynamics visualization showing the learned state-space
-      manifold and stick-conservation mechanism
+    - Distribution analysis including a rank-frequency plot with a spectral analysis inset
+    - Dynamics visualization showing the learned state-space manifold and stick-conservation mechanism
 """
 import pandas as pd
 import numpy as np
@@ -146,7 +144,7 @@ def generate_trajectory(model: NSB, n_steps: int) -> tuple[np.ndarray, np.ndarra
 
 # --- Table and Figure Generation ---
 def create_tables(results_df: pd.DataFrame):
-    """Generates and saves the LaTeX tables for the paper."""
+    """Generates and saves the LaTeX tables."""
     
     # Map old model names to new ones for backward compatibility
     model_name_mapping = {
@@ -192,10 +190,10 @@ def create_tables(results_df: pd.DataFrame):
     
     table_path = CONFIG['output_dir_results'] / "real_world_benchmark_table.tex"
     with open(table_path, 'w') as f: f.write(latex_str)
-    print(f"\nLaTeX Table 2 saved to '{table_path}'")
+    print(f"\nLaTeX table saved to '{table_path}'")
 
 def create_real_world_figure():
-    """Generates the figure for the real-world analysis with dynamics panel."""
+    """Generates the figure for the real-world analysis with dynamics visualization."""
     print("\n--- Generating Figure: Real-World Distribution Analysis ---")
     setup_plot_style()
     fig, axes = plt.subplots(1, 4, figsize=(23, 5.5), constrained_layout=True)

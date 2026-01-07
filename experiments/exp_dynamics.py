@@ -6,7 +6,7 @@ learns to handle long-tailed distributions like those found in superspreading
 events. It trains an NSB model on the real-world outbreak data and then
 visualizes the trajectory of its internal hidden states.
 
-The script generates a two-panel figure for the paper that illustrates:
+The script generates a figure that illustrates:
 1.  The structured "program" or manifold the RNN learns in its state space.
 2.  The "stick conservation" strategy it employs along this path to allow for
     the possibility of rare, high-magnitude events.
@@ -69,7 +69,7 @@ def generate_trajectory(model: NSB, n_steps: int) -> tuple[np.ndarray, np.ndarra
 
 def create_dynamics_figure(h_trajectory: np.ndarray, pi_trajectory: np.ndarray):
     """
-    Generates and saves the two-panel figure visualizing the learned dynamics.
+    Generates and saves the figure visualizing the learned dynamics.
     """
     print("\n--- Generating Figure: Visualizing Learned Dynamics ---")
     setup_plot_style()

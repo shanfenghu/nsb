@@ -6,8 +6,8 @@ as the training dataset size increases.
 
 The script generates:
 1.  A CSV file with the raw results (`results/sample_complexity_results.csv`).
-2.  A two-panel figure for the paper showing the learning curves
-    for both overall log-likelihood and the tail KL divergence.
+2.  A figure showing the learning curves for both overall log-likelihood 
+    and the tail KL divergence.
 """
 import numpy as np
 import pandas as pd
@@ -114,8 +114,8 @@ def run_experiment():
 
 # --- Figure Generation ---
 def create_learning_curve_figure(results_df: pd.DataFrame):
-    """Generates and saves the two-panel learning curve figure."""
-    print("\n--- Generating Figure 4: Sample Complexity and Learning Curves ---")
+    """Generates and saves the learning curve figure."""
+    print("\n--- Generating Figure: Sample Complexity and Learning Curves ---")
     setup_plot_style()
     fig, axes = plt.subplots(1, 2, figsize=(14, 6), constrained_layout=True)
 

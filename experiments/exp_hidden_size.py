@@ -6,8 +6,8 @@ the trade-off between model size and performance.
 
 The script generates:
 1.  A CSV file with the raw results (`results/hidden_size_sensitivity.csv`).
-2.  A line plot for the appendix showing Test Log-Likelihood vs. the number
-    of model parameters, annotated with the hidden dimension size.
+2.  A line plot showing Test Log-Likelihood vs. the number of model parameters, 
+    annotated with the hidden dimension size.
 """
 import pandas as pd
 import numpy as np

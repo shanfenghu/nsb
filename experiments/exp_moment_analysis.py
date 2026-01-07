@@ -4,9 +4,8 @@ when trained on the real-world `outbreaktrees` dataset, learns a distribution
 with a finite mean but an infinite variance, the signature of superspreading.
 
 The script generates:
-1.  A two-panel figure for the appendix showing the convergence of the partial
-    sum for the mean and the divergence of the partial sum for the variance,
-    averaged over multiple runs.
+1.  A figure showing the convergence of the partial sum for the mean and the 
+    divergence of the partial sum for the variance, averaged over multiple runs.
 """
 import pandas as pd
 import numpy as np
@@ -101,7 +100,7 @@ def run_experiment():
 
 # --- Figure Generation ---
 def create_moment_figure(all_mean_series: np.ndarray, all_variance_series: np.ndarray):
-    """Generates and saves the two-panel moment analysis figure."""
+    """Generates and saves the moment analysis figure."""
     print("\n--- Generating Figure: Quantitative Moment Analysis ---")
     setup_plot_style()
     fig, axes = plt.subplots(1, 2, figsize=(14, 6), constrained_layout=True)

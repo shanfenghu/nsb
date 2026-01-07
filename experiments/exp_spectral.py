@@ -9,8 +9,8 @@ different values and evaluates their performance on both a light-tailed
 
 The script generates:
 1.  A CSV file with the raw results (`results/spectral_radius_results.csv`).
-2.  A two-panel figure for the paper showing how Test Log-Likelihood and
-    Tail KL Divergence vary as a function of the allowed spectral radius.
+2.  A figure showing how Test Log-Likelihood and Tail KL Divergence vary as 
+    a function of the allowed spectral radius.
 """
 import numpy as np
 import pandas as pd
@@ -127,7 +127,7 @@ def run_experiment():
 
 # --- Figure Generation ---
 def create_spectral_figure(results_df: pd.DataFrame):
-    """Generates and saves the two-panel spectral analysis figure."""
+    """Generates and saves the spectral analysis figure."""
     print("\n--- Generating Figure: Spectral Radius Analysis ---")
     setup_plot_style()
     fig, axes = plt.subplots(1, 2, figsize=(14, 6), constrained_layout=True)
