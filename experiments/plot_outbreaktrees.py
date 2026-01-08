@@ -481,7 +481,7 @@ def create_real_world_figure():
     # Create right axis for hidden state norm ratio (orangered)
     orangered = '#FF4500'
     ax4_right = ax4.twinx()
-    ax4_right.plot(k_steps, h_norm_ratio, '-', color=orangered, linewidth=2, label=r'$||h_k|| / ||h_{k-1}||$', zorder=1, alpha=0.8)
+    ax4_right.plot(k_steps, h_norm_ratio, '-', color=orangered, linewidth=2, label=r'$\mathcal{R}_k=||h_k|| / ||h_{k-1}||$', zorder=1, alpha=0.8)
     ax4_right.set_ylabel(r"Hidden State Norm Ratio ($||h_k|| / ||h_{k-1}||$)", weight='bold', color=orangered)
     ax4_right.tick_params(axis='y', labelcolor=orangered)
     
@@ -502,8 +502,8 @@ def create_real_world_figure():
         pi_stable = pi_trajectory[k_stable]
         ax4.annotate(
             f'Equilibrium reached at \n Offspring Count k={k_stable}\n'
-            f'Norm Ratio: {norm_ratio_stable:.4f}\n'
-            f'Break Proportion: {pi_stable:.4f}',
+            f'$\\mathcal{{R}}_k$: {norm_ratio_stable:.4f}\n'
+            f'$\\pi_k$: {pi_stable:.4f}',
             xy=(k_stable, arrow_y),  # Arrow points to this point on the vertical line
             xytext=(text_x, text_y),  # Text position (left and down)
             fontsize=12, color='black', weight='bold',
