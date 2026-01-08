@@ -1,0 +1,15 @@
+outbreak_id,cluster_size_n,founder_count_z
+chn.2003.sars.1.00,79,1
+chn.2003.sars.1.01,2,1
+chn.2003.sars.2.00,70,1
+kor.2015.mers.1.00,186,1
+sau.2013.mers.1.00,24,1
+sau.2019.mers.1.00,41,1
+sau.2019.mers.1.01,8,1
+sgp.2003.sars.1.00,172,1
+gbr.2013.mers.1.00,3,1
+fra.2013.mers.1.00,2,1
+are.2013.mers.1.00,5,1
+are.2014.mers.1.00,3,1
+are.2014.mers.1.01,21,1
+sau.2015.mers.1.00,23,1
