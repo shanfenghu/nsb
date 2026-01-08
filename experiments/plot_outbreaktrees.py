@@ -59,9 +59,9 @@ def get_eigenvalues(model: NSB) -> np.ndarray:
     weight_matrix = model.cell.fc_h.weight.data.cpu().numpy()
     return np.linalg.eigvals(weight_matrix)
 
-def fit_with_eigenvalue_tracking(model: NSB, data: np.ndarray, epochs: int = 100, lr: float = 1e-3, batch_size: int = 32) -> list[complex]:
+def fit_with_eigenvalue_tracking(model: NSB, data: np.ndarray, epochs: int = 100, lr: float = 1e-3, batch_size: int = 32) -> tuple[list[complex], list[complex]]:
     """
-    Trains the NSB model while tracking the dominant eigenvalue at each epoch.
+    Trains the NSB model while tracking the dominant and second-largest eigenvalues at each epoch.
     
     Args:
         model (NSB): The NSB model to train.
@@ -71,7 +71,8 @@ def fit_with_eigenvalue_tracking(model: NSB, data: np.ndarray, epochs: int = 100
         batch_size (int): Batch size.
     
     Returns:
-        list[complex]: List of dominant eigenvalues at each epoch (including epoch 0).
+        tuple[list[complex], list[complex]]: Tuple of (dominant_eigenvalue_history, second_largest_eigenvalue_history) 
+                                            at each epoch (including epoch 0).
     """
     from torch.utils.data import DataLoader, TensorDataset
     import torch.optim as optim
@@ -84,11 +85,17 @@ def fit_with_eigenvalue_tracking(model: NSB, data: np.ndarray, epochs: int = 100
     optimizer = optim.Adam(list(model.cell.parameters()) + [model.h0], lr=lr)
     
     # Track eigenvalues: start with initial state (epoch 0)
-    eigenvalue_history = []
+    dominant_history = []
+    second_largest_history = []
     Wh_initial = model.cell.fc_h.weight.data.detach().cpu().numpy()
     eigenvalues_initial = np.linalg.eigvals(Wh_initial)
-    idx_dom = np.argmax(np.abs(eigenvalues_initial))
-    eigenvalue_history.append(eigenvalues_initial[idx_dom])
+    # Sort by magnitude to get dominant and second-largest
+    sorted_indices = np.argsort(np.abs(eigenvalues_initial))[::-1]
+    dominant_history.append(eigenvalues_initial[sorted_indices[0]])
+    if len(sorted_indices) > 1:
+        second_largest_history.append(eigenvalues_initial[sorted_indices[1]])
+    else:
+        second_largest_history.append(eigenvalues_initial[sorted_indices[0]])  # Fallback if only one eigenvalue
     
     model.cell.train()
     for epoch in range(epochs):
@@ -107,13 +114,17 @@ def fit_with_eigenvalue_tracking(model: NSB, data: np.ndarray, epochs: int = 100
             total_loss += loss.item()
             pbar.set_postfix(loss=f"{loss.item():.4f}")
         
-        # Track dominant eigenvalue after each epoch
+        # Track dominant and second-largest eigenvalues after each epoch
         Wh = model.cell.fc_h.weight.data.detach().cpu().numpy()
         eigenvalues = np.linalg.eigvals(Wh)
-        idx_dom = np.argmax(np.abs(eigenvalues))
-        eigenvalue_history.append(eigenvalues[idx_dom])
+        sorted_indices = np.argsort(np.abs(eigenvalues))[::-1]
+        dominant_history.append(eigenvalues[sorted_indices[0]])
+        if len(sorted_indices) > 1:
+            second_largest_history.append(eigenvalues[sorted_indices[1]])
+        else:
+            second_largest_history.append(eigenvalues[sorted_indices[0]])  # Fallback if only one eigenvalue
     
-    return eigenvalue_history
+    return dominant_history, second_largest_history
 
 def generate_trajectory(model: NSB, n_steps: int) -> tuple[np.ndarray, np.ndarray]:
     """
@@ -244,6 +255,7 @@ def create_real_world_figure():
     k_vals_plot = np.arange(max_val_hist + 1)
     # Track eigenvalue evolution for NSB model only
     nsb_eigenvalue_history = None
+    nsb_second_eigenvalue_history = None
     
     for model_name, model in models_to_plot.items():
         # Reset seed for each model to ensure reproducible training
@@ -254,7 +266,7 @@ def create_real_world_figure():
             model.fit(train_data, epochs=CONFIG['nn_params']['epochs'], lr=CONFIG['nn_params']['lr'])
         elif isinstance(model, NSB) and model_name == 'NSB':
             # Track eigenvalues during NSB training
-            nsb_eigenvalue_history = fit_with_eigenvalue_tracking(
+            nsb_eigenvalue_history, nsb_second_eigenvalue_history = fit_with_eigenvalue_tracking(
                 model, train_data, 
                 epochs=CONFIG['nn_params']['epochs'], 
                 lr=CONFIG['nn_params']['lr']
@@ -372,16 +384,29 @@ def create_real_world_figure():
     eigenvalues = get_eigenvalues(nsb_model)
     axins.scatter(eigenvalues.real, eigenvalues.imag, marker='o', color=NSB_COLORS['nsb'], alpha=0.7, s=20)
     
-    # Find eigenvalues outside the unit circle and annotate them
-    for i, eig in enumerate(eigenvalues):
-        magnitude = np.abs(eig)
-        if magnitude > 1.0:
-            # Annotate with a small offset to avoid overlapping with the point
-            axins.annotate(f'{magnitude:.2f}', 
-                          xy=(eig.real, eig.imag),
-                          xytext=(5, 5), textcoords='offset points',
+    # Find and annotate the dominant and second-largest eigenvalues
+    # Sort eigenvalues by magnitude (descending)
+    eig_with_magnitude = [(eig, np.abs(eig)) for eig in eigenvalues]
+    eig_with_magnitude.sort(key=lambda x: x[1], reverse=True)
+    
+    # Annotate dominant eigenvalue (largest magnitude)
+    if len(eig_with_magnitude) > 0:
+        dominant_eig, dominant_mag = eig_with_magnitude[0]
+        if dominant_mag > 1.0:
+            axins.annotate(rf'$\lambda_1 = {dominant_mag:.2f}$', 
+                          xy=(dominant_eig.real, dominant_eig.imag),
+                          xytext=(-2, 8), textcoords='offset points',
                           fontsize=8, color='red', weight='bold',
                           bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='red'))
+    
+    # Annotate second-largest eigenvalue (always, regardless of magnitude)
+    if len(eig_with_magnitude) > 1:
+        second_eig, second_mag = eig_with_magnitude[1]
+        axins.annotate(rf'$\lambda_2 = {second_mag:.2f}$', 
+                      xy=(second_eig.real, second_eig.imag),
+                      xytext=(-2, -12), textcoords='offset points',
+                      fontsize=8, color='red', weight='bold',
+                      bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor='red'))
     
     # Set axis labels (same format as panel d)
     axins.set_xlabel('Re(λ)', fontsize=9, labelpad=2)
@@ -392,7 +417,7 @@ def create_real_world_figure():
     axins.set_yticks([-1, 0, 1])
     axins.tick_params(labelsize=7)
     
-    axins.set_title("NSB's Spectral Radius", fontsize=10)
+    axins.set_title("NSB's Learned Eigenvalues", fontsize=10)
     axins.set_aspect('equal', adjustable='box')
 
     # --- Panel (d): Dynamics Visualization ---
@@ -519,9 +544,9 @@ def create_real_world_figure():
     
     ax4.set_title("(d) NSB's Learned Dynamics/Equilibrium", weight='bold')
     
-    # --- Inset: Dominant Eigenvalue Evolution During Training ---
-    # Show how the dominant eigenvalue evolves from initialization to final trained state
-    if nsb_eigenvalue_history is not None:
+    # --- Inset: Dominant and Second-Largest Eigenvalue Evolution During Training ---
+    # Show how the dominant and second-largest eigenvalues evolve from initialization to final trained state
+    if nsb_eigenvalue_history is not None and nsb_second_eigenvalue_history is not None:
         # Position inset at middle bottom: [x0, y0, width, height] in axes coordinates
         axins_eig = ax4.inset_axes([0.3, 0.08, 0.45, 0.45])
         
@@ -568,6 +593,29 @@ def create_real_world_figure():
             zorder=3
         )
         
+        # Plot second-largest eigenvalue trajectory (without epoch annotations)
+        if nsb_second_eigenvalue_history is not None:
+            eig2_array = np.array(nsb_second_eigenvalue_history)
+            # Plot trajectory with same colormap but dashed style
+            for i in range(len(eig2_array) - 1):
+                axins_eig.plot(
+                    [eig2_array[i].real, eig2_array[i+1].real],
+                    [eig2_array[i].imag, eig2_array[i+1].imag],
+                    '-', color=plt.cm.plasma(i / len(eig2_array)), linewidth=1.0, alpha=0.6, linestyle=':', zorder=2
+                )
+            # Overlay points for second-largest eigenvalue with same colormap
+            scatter_eig2 = axins_eig.scatter(
+                eig2_array.real, eig2_array.imag,
+                c=epochs_array,
+                cmap='plasma',
+                alpha=0.7,
+                s=20,
+                edgecolors='white',
+                linewidths=0.5,
+                marker='s',  # Square markers to distinguish from dominant
+                zorder=3
+            )
+        
         # Annotate the epoch just before crossing the critical boundary
         if crossing_epoch is not None:
             eig_before_crossing = eig_array[crossing_epoch]
@@ -608,7 +656,7 @@ def create_real_world_figure():
         axins_eig.tick_params(labelsize=7)
         
         # Set title (same fontsize as panel c inset)
-        axins_eig.set_title("NSB's Dominant Eigenvalue", fontsize=10, weight='bold')
+        axins_eig.set_title(r"Trajectory of Eigenvalues $(\lambda_1, \lambda_2)$", fontsize=10, weight='bold')
         
         # Add colorbar for epochs on the right of the inset
         # Use ax parameter to ensure colorbar is positioned relative to the inset
