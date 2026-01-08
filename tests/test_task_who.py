@@ -28,30 +28,32 @@ class TestTaskWho:
         assert torch.allclose(prior, torch.ones(n) / n)
         assert torch.allclose(prior.sum(), torch.tensor(1.0))
 
-    def test_get_prior_sparse(self):
-        """Verifies that the sparse prior exhibits exponential decay."""
+    def test_get_prior_community(self):
+        """Verifies that the community prior (Poisson) exhibits appropriate decay."""
         n = 5
-        # lambda=1.0 means pi(z) ~ exp(-z)
-        prior = get_prior(n, prior_type="sparse", params={"lambda": 1.0})
-        # pi(1) should be significantly greater than pi(5)
+        # lambda=1.0 means Poisson with mean 1.0
+        prior = get_prior(n, prior_type="community", params={"lambda": 1.0})
+        # For Poisson with lambda=1.0, pi(1) should be greater than pi(5)
         assert prior[0] > prior[4]
         assert torch.allclose(prior.sum(), torch.tensor(1.0))
 
-    def test_get_prior_informed(self):
-        """Verifies the informed prior is centered on the specified mean."""
+    def test_get_prior_clustered(self):
+        """Verifies the clustered prior (Negative Binomial) has appropriate shape."""
         n = 10
-        mu = 5.0
-        prior = get_prior(n, prior_type="informed", params={"mu": mu, "sigma": 1.0})
-        # Peak should be at index 4 (z=5)
-        assert torch.argmax(prior).item() == 4 
+        r = 2.0
+        p = 0.5
+        prior = get_prior(n, prior_type="clustered", params={"r": r, "p": p})
+        # Negative Binomial with r=2, p=0.5 should have mode around z=1-2
+        # Verify it's normalized and has reasonable shape
         assert torch.allclose(prior.sum(), torch.tensor(1.0))
+        assert torch.all(prior >= 0.0)
 
     # --- 2. Integrated Attribution Tests ---
 
     def test_attribution_normalization(self, mock_dist):
         """Ensures the posterior always sums to 1.0 regardless of prior type."""
         n = 20
-        priors = ["flat", "sparse", "informed"]
+        priors = ["flat", "community", "clustered"]
         for p_type in priors:
             post = attribute_source(mock_dist, n, prior_type=p_type)
             assert torch.allclose(post.sum(), torch.tensor(1.0), atol=1e-5)
@@ -59,36 +61,37 @@ class TestTaskWho:
 
     def test_bayesian_mode_shift(self):
         """
-        Verify that the sparse prior shifts the MAP estimate toward a 
-        lower number of founders compared to the flat prior.
+        Verify that the community prior (Poisson with low lambda) shifts the MAP 
+        estimate toward a lower number of founders compared to the flat prior.
         """
         # Dist where high founder count is slightly likely under flat prior
         p_dist = torch.tensor([0.2, 0.4, 0.4]) 
         n = 10
         
         post_flat = attribute_source(p_dist, n, prior_type="flat")
-        post_sparse = attribute_source(p_dist, n, prior_type="sparse", prior_params={"lambda": 2.0})
+        post_community = attribute_source(p_dist, n, prior_type="community", prior_params={"lambda": 1.0})
         
         map_flat = torch.argmax(post_flat).item()
-        map_sparse = torch.argmax(post_sparse).item()
+        map_community = torch.argmax(post_community).item()
         
-        # Sparse prior should pull the peak toward z=1
-        assert map_sparse <= map_flat
+        # Community prior with low lambda should pull the peak toward z=1
+        assert map_community <= map_flat
 
-    def test_informed_prior_dominance(self, mock_dist):
+    def test_clustered_prior_dominance(self, mock_dist):
         """
-        If we have a very strong (low sigma) informed prior, the posterior 
-        mode should match the prior mean regardless of the cluster size.
+        If we have a very strong clustered prior (Negative Binomial with 
+        parameters that favor a specific range), the posterior mode should 
+        be influenced by the prior.
         """
         n = 50
-        target_mu = 3.0
-        # Extremely tight sigma (near Delta distribution)
-        params = {"mu": target_mu, "sigma": 0.01}
+        # Use Negative Binomial with r=1, p=0.1 to strongly favor low z values
+        # This creates a very peaked distribution around z=1-2
+        params = {"r": 1.0, "p": 0.1}
         
-        post = attribute_source(mock_dist, n, prior_type="informed", prior_params=params)
+        post = attribute_source(mock_dist, n, prior_type="clustered", prior_params=params)
         
-        # Mode should be exactly z=3 (index 2)
-        assert torch.argmax(post).item() == 2
+        # With r=1, p=0.1, the prior strongly favors z=1, so mode should be at index 0 (z=1)
+        assert torch.argmax(post).item() == 0
 
     # --- 3. Robustness and Edge Cases ---
 

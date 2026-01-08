@@ -12,28 +12,37 @@ from typing import Optional, Dict, Union
 def get_prior(n: int, prior_type: str = "flat", params: Optional[Dict] = None, device: str = "cpu") -> torch.Tensor:
     """
     Generates the epidemiological prior pi(z) for the number of founders.
+    Realigned with the three archetypes: Poisson, Flat, and Negative Binomial.
     """
     z_range = torch.arange(1, n + 1, device=device).float()
     
     if prior_type == "flat":
-        # Uninformative: every founder count is equally likely
+        # Archetype: Clinical and High-Traffic Settings (Constant/Sustained)
         return torch.ones(n, device=device) / n
         
-    elif prior_type == "sparse":
-        # Epidemic Sparse: Exponential decay representing rare introduction events
-        lam = params.get("lambda", 0.5) if params else 0.5
-        prior = torch.exp(-lam * z_range)
+    elif prior_type == "community":
+        # Archetype: Community Introduction (Sparse/Independent)
+        # Using Poisson: pi(z) = (lambda^z * e^-lambda) / z!
+        lam = params.get("lambda", 2.0) if params else 2.0
+        # Compute in log-space for numerical stability
+        log_prior = z_range * torch.log(torch.tensor(lam)) - lam - torch.lgamma(z_range + 1)
+        prior = torch.exp(log_prior)
         return prior / prior.sum()
         
-    elif prior_type == "informed":
-        # Surveillance-Informed: Gaussian centered on suspected entry count
-        mu = params.get("mu", 1.0) if params else 1.0
-        sigma = params.get("sigma", 1.0) if params else 1.0
-        prior = torch.exp(-0.5 * ((z_range - mu) / sigma) ** 2)
+    elif prior_type == "clustered":
+        # Archetype: Clustered Seeding (Overdispersed/Super-Seeding)
+        # Using Negative Binomial: Captures high variance in introductions
+        r = params.get("r", 2.0) if params else 2.0 # Number of successes
+        p = params.get("p", 0.5) if params else 0.5 # Probability of success
+        
+        # NB PMF: exp(log_gamma(z+r) - log_gamma(z+1) - log_gamma(r) + r*log(1-p) + z*log(p))
+        log_prior = (torch.lgamma(z_range + r) - torch.lgamma(z_range + 1) - torch.lgamma(torch.tensor(r)) +
+                     r * torch.log(torch.tensor(1 - p)) + z_range * torch.log(torch.tensor(p)))
+        prior = torch.exp(log_prior)
         return prior / prior.sum()
     
     else:
-        raise ValueError(f"Unknown prior type: {prior_type}")
+        raise ValueError(f"Unknown prior type: {prior_type}. Choose from 'flat', 'community', or 'clustered'.")
 
 
 def attribute_source(
@@ -48,7 +57,7 @@ def attribute_source(
     Args:
         p_dist (torch.Tensor): Offspring distribution {p_k} of length K.
         n (int): Observed aggregate cluster size.
-        prior_type (str): 'flat', 'sparse', or 'informed'.
+        prior_type (str): 'flat', 'community', or 'clustered'.
         prior_params (dict): Parameters for the chosen prior.
         
     Returns:
