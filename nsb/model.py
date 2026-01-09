@@ -1,5 +1,15 @@
 """
-Implementation of the Neural Stick-Breaking (NSB) process model.
+Neural Stick-Breaking (NSB) Process Model
+
+This module implements the NSB process, a neural network-based approach to learning
+probability distributions over non-negative integers (e.g., offspring counts in
+branching processes). The model uses a recurrent neural network to recursively
+generate stick-breaking proportions, which define a probability mass function
+through the stick-breaking construction.
+
+The NSB model is particularly well-suited for learning heavy-tailed distributions
+with overdispersion, making it ideal for modeling superspreading events in
+epidemiological transmission processes.
 """
 import torch
 import torch.nn as nn
@@ -91,15 +101,22 @@ class NSB:
 
     def _compute_log_probs(self, counts: torch.Tensor) -> torch.Tensor:
         """
-        Computes the log-probabilities for a batch of counts in a numerically
-        stable way.
+        Computes the log-probabilities for a batch of counts using the stick-breaking
+        construction in a numerically stable way.
+
+        The stick-breaking process defines probabilities as:
+            p_k = π_k * ∏_{j=0}^{k-1} (1 - π_j)
+        
+        where π_k = sigmoid(π_logit_k) is the proportion broken off at step k.
+        This method computes log(p_k) using log-space arithmetic to avoid numerical
+        underflow.
 
         Args:
             counts (torch.Tensor): A batch of non-negative integer counts.
                                    Shape: (batch_size,)
 
         Returns:
-            torch.Tensor: The log-probabilities for each count in the batch.
+            torch.Tensor: The log-probabilities log(p_c) for each count c in the batch.
                           Shape: (batch_size,)
         """
         batch_size = counts.shape[0]
@@ -140,10 +157,15 @@ class NSB:
 
     def fit(self, data: np.ndarray, epochs: int = 100, lr: float = 1e-3, batch_size: int = 32):
         """
-        Trains the NSB model on the provided data.
+        Trains the NSB model on the provided data using maximum likelihood estimation.
+
+        The training process minimizes the negative log-likelihood of the observed
+        counts under the learned distribution. The model uses the Adam optimizer
+        with the specified learning rate.
 
         Args:
             data (np.ndarray): A 1D NumPy array of non-negative integer counts.
+                               Each value represents an observed count (e.g., cluster size).
             epochs (int, optional): The number of training epochs. Defaults to 100.
             lr (float, optional): The learning rate for the Adam optimizer. Defaults to 1e-3.
             batch_size (int, optional): The training batch size. Defaults to 32.
@@ -177,13 +199,19 @@ class NSB:
 
     def predict_pmf(self, k_max: int) -> np.ndarray:
         """
-        Computes the learned PMF from k=0 to k_max.
+        Computes the learned probability mass function (PMF) from k=0 to k_max.
+
+        This method unrolls the RNN to generate stick-breaking proportions π_k
+        and constructs the PMF using the stick-breaking formula:
+            p_k = π_k * ∏_{j=0}^{k-1} (1 - π_j)
 
         Args:
             k_max (int): The maximum count value to compute the probability for.
+                         The PMF will include probabilities for k = 0, 1, ..., k_max.
 
         Returns:
-            np.ndarray: A 1D NumPy array of size (k_max + 1) containing the PMF.
+            np.ndarray: A 1D NumPy array of size (k_max + 1) containing the PMF,
+                        where pmf[k] = P(X = k) for k in {0, 1, ..., k_max}.
         """
         self.cell.eval()
         with torch.no_grad():

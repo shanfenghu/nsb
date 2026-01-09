@@ -1,5 +1,14 @@
 """
-Utilities for creating consistent, publication-quality plots for the NSB paper.
+Plotting Utilities for NSB Paper Figures
+
+This module provides utilities for creating consistent, publication-quality plots
+across all figures in the NSB paper. It includes:
+- Centralized color palette (NSB_COLORS) for consistent styling
+- Global plot style configuration (setup_plot_style)
+- Figure saving utilities (save_figure) for multiple formats
+
+All plotting functions in the experiments/ directory should use these utilities
+to ensure visual consistency and professional appearance.
 """
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -23,6 +32,15 @@ NSB_COLORS = {
 def setup_plot_style():
     """
     Sets the global matplotlib rcParams for a consistent, professional look.
+
+    This function configures matplotlib with:
+    - Serif fonts for a classic academic appearance
+    - STIX math font for LaTeX-style mathematical notation
+    - Bold axis labels and titles for emphasis
+    - Seaborn whitegrid style for clean backgrounds
+    - Appropriate font sizes for publication (14pt base, 12pt ticks, 16pt titles)
+
+    Should be called at the beginning of each plotting script to ensure consistency.
     """
     plt.style.use('seaborn-v0_8-whitegrid')
     plt.rcParams.update({
@@ -45,11 +63,16 @@ def save_figure(fig, filename: str, output_dir: str = "figures"):
     """
     Saves a matplotlib figure in multiple high-quality formats.
 
+    This function saves figures in both PDF (for paper inclusion) and PNG (for
+    easy viewing) formats at 300 DPI with tight bounding boxes. The output
+    directory is created if it doesn't exist.
+
     Args:
-        fig: The matplotlib figure object to save.
-        filename (str): The base name for the file (e.g., "synthetic_fits").
+        fig: The matplotlib figure object to save
+        filename (str): The base name for the file (without extension).
+                        Example: "synthetic_fits" → "synthetic_fits.pdf" and "synthetic_fits.png"
         output_dir (str, optional): The directory to save the figures in.
-                                      Defaults to "figures".
+                                      Defaults to "figures". Will be created if missing.
     """
     # Create the output directory if it doesn't exist
     output_dir_path = Path(output_dir)

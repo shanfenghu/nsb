@@ -1,6 +1,15 @@
 """
 NSB Task Module: "How" (Structural Fingerprinting)
-Optimized with Newton-Raphson root finding for extinction probability.
+
+This module addresses the forensic question "How certain can we be about source
+attribution?" by computing structural metrics of the learned offspring distribution:
+
+1. Shannon Entropy: Measures uncertainty in the offspring distribution
+2. Basic Reproductive Number (R0): Mean offspring count R0 = E[k] = sum(k * p_k)
+3. Extinction Probability (q): Fixed point of PGF, q = G(q)
+
+The extinction probability is computed using Newton-Raphson root finding for
+supercritical processes (R0 > 1), with q = 1 for subcritical processes (R0 ≤ 1).
 """
 
 import torch
@@ -9,7 +18,21 @@ from typing import Dict
 
 def compute_how_metrics(p_dist: torch.Tensor) -> Dict[str, float]:
     """
-    Computes structural metrics including Shannon entropy and R0.
+    Computes structural metrics of the offspring distribution for forensic analysis.
+
+    This function calculates three key metrics:
+    - Entropy: Shannon entropy H = -sum(p_k * log(p_k)) measuring distribution uncertainty
+    - R0: Basic reproductive number R0 = sum(k * p_k) measuring mean transmission
+    - Extinction Probability: Fixed point q = G(q) measuring outbreak survival probability
+
+    Args:
+        p_dist (torch.Tensor): Offspring probability distribution p_k (will be normalized)
+
+    Returns:
+        Dict[str, float]: Dictionary with keys:
+            - "entropy": Shannon entropy (bits)
+            - "r0": Basic reproductive number
+            - "extinction_prob": Extinction probability q ∈ [0, 1]
     """
     p_dist = p_dist / p_dist.sum()
     K = len(p_dist)
@@ -34,8 +57,19 @@ def compute_how_metrics(p_dist: torch.Tensor) -> Dict[str, float]:
 
 def _solve_extinction_newton(p_dist: torch.Tensor, r0: float) -> float:
     """
-    Solves f(s) = G(s) - s = 0 using Newton-Raphson.
-    The derivative f'(s) = G'(s) - 1.
+    Solves the fixed-point equation q = G(q) using Newton-Raphson method.
+
+    The extinction probability q is the smallest non-negative solution to q = G(q),
+    where G(s) = sum_k p_k * s^k is the probability generating function. For
+    subcritical processes (R0 ≤ 1), q = 1. For supercritical processes (R0 > 1),
+    we solve f(s) = G(s) - s = 0 using Newton-Raphson with initial guess s = 0.5.
+
+    Args:
+        p_dist (torch.Tensor): Offspring probability distribution (normalized)
+        r0 (float): Basic reproductive number (for early termination if R0 ≤ 1)
+
+    Returns:
+        float: Extinction probability q ∈ [0, 1]
     """
     if r0 <= 1.0:
         return 1.0

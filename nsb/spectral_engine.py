@@ -52,18 +52,26 @@ class SpectralEngine:
         """
         Computes the full likelihood surface P(C=n | Z=z) for all z in {1..n}.
 
-        This implements the One-Pass Attribution algorithm (Algorithm 2) 
-        using the Neural Otter-Dwass identity (Lemma 1).
+        This implements the One-Pass Attribution algorithm (Algorithm 2) using the
+        Neural Otter-Dwass identity (Lemma 1). The algorithm leverages the duality
+        between n-fold convolution and complex exponentiation in the spectral domain:
+
+        1. Zero-padding to length L = 2^ceil(log2(n*(K-1)+1)) prevents aliasing
+        2. Forward FFT maps p_dist to spectral domain: p_hat = FFT(p_padded)
+        3. Spectral powering: q_hat = p_hat^n (equivalent to n-fold convolution)
+        4. Inverse FFT maps back: q = IFFT(q_hat)
+        5. Extract likelihoods via Otter-Dwass: P(C=n|Z=z) = (z/n) * Re(q[n-z])
 
         Args:
             p_dist (torch.Tensor): The learned offspring distribution {p_k}.
-                                   Shape: (K,)
-            n (int): The observed aggregate cluster size.
+                                   Shape: (K,), must be normalized
+            n (int): The observed aggregate cluster size (must be positive)
             device (torch.device, optional): Device to perform computations on.
+                                            Defaults to p_dist.device
 
         Returns:
-            torch.Tensor: Likelihood vector L where L[z-1] = P(C=n | Z=z).
-                          Shape: (n,)
+            torch.Tensor: Likelihood vector L where L[z-1] = P(C=n | Z=z) for z ∈ {1..n}.
+                          Shape: (n,), all values are non-negative
         """
         # --- Validation Checks ---
         if n <= 0:
@@ -123,8 +131,19 @@ class SpectralEngine:
     @classmethod
     def compute_spectral_radius(cls, weights: torch.Tensor) -> float:
         """
-        Calculates the spectral radius rho(W_h) of the recurrent manifold.
-        Used to verify the stability and tail decay properties (Theorem 6).
+        Calculates the spectral radius ρ(W_h) of the recurrent weight matrix.
+
+        The spectral radius is the magnitude of the largest eigenvalue, which
+        determines the stability and tail decay properties of the NSB process
+        (Theorem 6). For ρ < 1, the process is stable with exponential tail decay.
+        For ρ = 1, the process is at criticality with heavy tails.
+
+        Args:
+            weights (torch.Tensor): Square weight matrix (e.g., W_h from NSB cell)
+                                    Shape: (d, d) where d is the hidden dimension
+
+        Returns:
+            float: Spectral radius ρ = max(|λ_i|) where λ_i are eigenvalues
         """
         if weights.ndim != 2 or weights.shape[0] != weights.shape[1]:
             raise ValueError("Weights must be a square matrix.")
@@ -137,8 +156,20 @@ class SpectralEngine:
     @classmethod
     def check_hermitian_symmetry(cls, spectral_vec: torch.Tensor) -> bool:
         """
-        Verifies if the spectral vector maintains Hermitian symmetry, 
-        ensuring the reconstructed probabilities are purely real.
+        Verifies if the spectral vector maintains Hermitian symmetry.
+
+        For a real-valued probability distribution, the FFT output must satisfy
+        Hermitian symmetry: p_hat[m] = conj(p_hat[L-m]) for m = 1, ..., L//2.
+        This ensures that the inverse FFT produces purely real coefficients,
+        which is required for valid probability distributions.
+
+        Args:
+            spectral_vec (torch.Tensor): Complex spectral vector from FFT
+                                         Shape: (L,)
+
+        Returns:
+            bool: True if Hermitian symmetry is maintained (within tolerance),
+                  False otherwise
         """
         # Complex conjugate symmetry: hat{p}_m = conj(hat{p}_{L-m})
         L = len(spectral_vec)

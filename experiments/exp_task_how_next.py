@@ -1,11 +1,18 @@
 """
 exp_task_how_next.py: Forensic Forecasting Dashboard
-Analyzes Task "How" (Entropy) and Task "Next" (Extinction/Volatility).
+
+Generates a 2x2 dashboard analyzing Task "How" (Entropy) and Task "Next" (Extinction/Volatility)
+for SARS/MERS transmission data using the Neural Stick-Breaking (NSB) model.
+
 Panels:
-A. Extinction Phase Transition: E(R0) fixed-point stability analysis
-B. Forensic Entropy: Information loss H(z|n) vs. cluster size n
-C. Branching Volatility: Tail risk and "Bimodal Tension" (Extinction vs. Superspreading)
-D. Spectral Energy Dissipation: Recursive G_m(s) decay on the unit circle
+    A. Extinction Phase Transition: Fixed-point stability analysis q = G(q) vs. R0
+    B. Forensic Entropy: Shannon entropy H(z|n) and attribution certainty vs. cluster size n
+    C. Branching Volatility: Offspring distribution tail probabilities (extinction vs. superspreading)
+    D. Spectral Energy Dissipation: Recursive PGF G_m(s) = G(G_{m-1}(s)) on the unit circle
+
+This dashboard complements exp_task_who.py by addressing the remaining forensic questions:
+- "How" certain can we be about source attribution? (Panel B)
+- "Next" what is the risk of extinction vs. superspreading? (Panels A, C, D)
 """
 
 import torch
@@ -51,14 +58,37 @@ CONFIG = {
 # --------------------------------------------------------------------------
 
 def load_and_split_data(path: Path, test_size: float, seed: int):
-    """Loads cluster size data and splits into train/test."""
+    """
+    Loads offspring count data from CSV and splits into train/test sets.
+    
+    Args:
+        path: Path to CSV file containing 'offspring_count' column
+        test_size: Fraction of data to use for testing (e.g., 0.2 for 80/20 split)
+        seed: Random seed for reproducible train/test split
+        
+    Returns:
+        tuple: (train_data, test_data) as numpy arrays
+    """
     df = pd.read_csv(path)
     data = df['offspring_count'].values.astype(float)
     train_data, test_data = train_test_split(data, test_size=test_size, random_state=seed)
     return train_data, test_data
 
 def train_nsb_model(train_data: np.ndarray, config: dict) -> NSB:
-    """Trains an NSB model on the training data."""
+    """
+    Trains a Neural Stick-Breaking (NSB) model on offspring count data.
+    
+    Args:
+        train_data: Array of offspring counts (cluster sizes) for training
+        config: Configuration dictionary with 'nn_params' containing:
+            - hidden_dim: Hidden layer dimension
+            - epochs: Number of training epochs
+            - lr: Learning rate
+            - batch_size: Batch size for training
+            
+    Returns:
+        Trained NSB model instance
+    """
     model = NSB(hidden_dim=config['nn_params']['hidden_dim'])
     model.fit(train_data, epochs=config['nn_params']['epochs'], 
               lr=config['nn_params']['lr'], batch_size=config['nn_params']['batch_size'])
@@ -69,7 +99,16 @@ def train_nsb_model(train_data: np.ndarray, config: dict) -> NSB:
 # --------------------------------------------------------------------------
 
 def get_poisson_p_dist(r0: float, k_max: int) -> torch.Tensor:
-    """Analytical Poisson offspring law matching NSB R0."""
+    """
+    Generates a Poisson offspring distribution with mean R0.
+    
+    Args:
+        r0: Target reproductive number (mean of Poisson distribution)
+        k_max: Maximum offspring count (truncation depth)
+        
+    Returns:
+        Normalized probability distribution p_k for k = 0, 1, ..., k_max-1
+    """
     k = torch.arange(k_max).float()
     lambda_val = r0
     log_pmf = k * torch.log(torch.tensor(lambda_val)) - torch.tensor(lambda_val) - torch.lgamma(k + 1)
@@ -77,7 +116,17 @@ def get_poisson_p_dist(r0: float, k_max: int) -> torch.Tensor:
     return p_dist / p_dist.sum()
 
 def get_nb_p_dist(r0: float, k_max: int, overdispersion: float = 0.1) -> torch.Tensor:
-    """Analytical Negative Binomial law matching NSB R0 with overdispersion."""
+    """
+    Generates a Negative Binomial offspring distribution with mean R0 and overdispersion.
+    
+    Args:
+        r0: Target reproductive number (mean of distribution)
+        k_max: Maximum offspring count (truncation depth)
+        overdispersion: Dispersion parameter (smaller = more overdispersed)
+        
+    Returns:
+        Normalized probability distribution p_k for k = 0, 1, ..., k_max-1
+    """
     k_disp = overdispersion
     p = k_disp / (k_disp + r0)
     r = k_disp
@@ -94,16 +143,37 @@ def get_nb_p_dist(r0: float, k_max: int, overdispersion: float = 0.1) -> torch.T
 
 def compute_extinction_probability(p_dist: torch.Tensor) -> float:
     """
-    Computes extinction probability by solving s = G(s) for s in [0, 1].
-    Uses the Newton-Raphson method from task_how.py for consistency.
+    Computes the extinction probability q by solving the fixed-point equation q = G(q).
+    
+    The extinction probability is the smallest non-negative solution to q = G(q), where
+    G(s) = sum_k p_k * s^k is the probability generating function. For subcritical
+    processes (R0 < 1), q = 1. For supercritical processes (R0 > 1), q < 1.
+    
+    Args:
+        p_dist: Offspring probability distribution p_k
+        
+    Returns:
+        Extinction probability q in [0, 1]
     """
     metrics = compute_how_metrics(p_dist)
     return metrics['extinction_prob']
 
 def scale_offspring_distribution(p_dist: torch.Tensor, scale_factor: float) -> torch.Tensor:
     """
-    Scales the offspring distribution to achieve a desired R0 scaling.
-    Reuses the exponential tilting method from exp_task_who.py.
+    Scales the offspring distribution to achieve a target R0 using exponential tilting.
+    
+    Uses exponential tilting: p_k^scaled ∝ p_k * exp(λ*k) where λ is chosen via
+    binary search to achieve the target R0 = scale_factor * R0_original.
+    
+    This preserves the shape of the distribution while adjusting the mean, enabling
+    sensitivity analysis across different R0 values (e.g., for Panel A).
+    
+    Args:
+        p_dist: Original offspring probability distribution
+        scale_factor: Multiplier for R0 (e.g., 1.2 means 20% increase in R0)
+        
+    Returns:
+        Scaled offspring distribution with R0 = scale_factor * R0_original
     """
     device = p_dist.device
     p_np = p_dist.numpy() if torch.is_tensor(p_dist) else p_dist
@@ -149,15 +219,23 @@ def scale_offspring_distribution(p_dist: torch.Tensor, scale_factor: float) -> t
 
 def compute_generation_pgf(p_dist: torch.Tensor, m: int, s_points: np.ndarray) -> np.ndarray:
     """
-    Computes the m-th generation PGF: G_m(s) = G(G_{m-1}(s)).
+    Computes the m-th generation probability generating function (PGF).
+    
+    The recursive PGF is defined as:
+        G_0(s) = s
+        G_m(s) = G(G_{m-1}(s)) = sum_k p_k * [G_{m-1}(s)]^k
+    
+    This represents the PGF of the total number of individuals in generation m,
+    starting from a single founder. As m increases, G_m(s) contracts toward the
+    extinction probability q = G(q) (Panel D visualization).
     
     Args:
-        p_dist: Offspring distribution
-        m: Generation number
-        s_points: Complex points on unit circle to evaluate
+        p_dist: Offspring probability distribution p_k
+        m: Generation number (m=1 is first generation, m=2 is second, etc.)
+        s_points: Complex points on the unit circle s = exp(i*θ) to evaluate
         
     Returns:
-        Array of G_m(s) values
+        Array of complex values G_m(s) for each s in s_points
     """
     p_np = p_dist.numpy() if torch.is_tensor(p_dist) else p_dist
     k_idx = np.arange(len(p_np))
@@ -181,13 +259,20 @@ def compute_generation_pgf(p_dist: torch.Tensor, m: int, s_points: np.ndarray) -
 
 def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/MERS"):
     """
-    Creates the 2x2 Forensic Forecasting Dashboard.
+    Creates the 2x2 Forensic Forecasting Dashboard for Task "How" and "Next".
     
-    Panels:
-    A. Extinction Phase Transition E(R0)
-    B. Forensic Entropy H(z|n)
-    C. Branching Volatility (Tail Risk)
-    D. Spectral Energy Dissipation
+    This function generates four panels that address:
+    - Panel A: How does extinction probability depend on R0? (Phase transition analysis)
+    - Panel B: How certain can we be about source attribution? (Entropy analysis)
+    - Panel C: What is the risk of extinction vs. superspreading? (Tail probabilities)
+    - Panel D: How does spectral information decay across generations? (PGF recursion)
+    
+    Args:
+        p_nsb: Learned offspring distribution from NSB model (normalized)
+        pathogen_name: Name of pathogen for title annotations (default: "SARS/MERS")
+        
+    Saves:
+        PDF figure to figures/exp_task_how_next.pdf
     """
     setup_plot_style()
     fig = plt.figure(figsize=(16, 12))
@@ -198,6 +283,9 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     k_max = len(p_nsb)
     
     # --- PANEL A: Extinction Phase Transition ---
+    # Visualizes the fixed-point equation q = G(q) as a function of R0.
+    # Shows the critical transition at R0 = 1 where extinction probability
+    # changes from q = 1 (subcritical) to q < 1 (supercritical).
     ax_a = fig.add_subplot(gs[0, 0])
     
     print("   Computing extinction phase transition...")
@@ -207,16 +295,16 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     ext_nb = []
     
     for r0_target in r0_range:
-        # Scale NSB distribution to achieve target R0
+        # Scale NSB distribution to achieve target R0 using exponential tilting
         scale_factor = r0_target / r0_learned
         p_scaled = scale_offspring_distribution(p_nsb, scale_factor)
         ext_nsb.append(compute_extinction_probability(p_scaled))
         
-        # Poisson extinction: For Poisson, E = 1 if R0 <= 1, else solve s = exp(R0(s-1))
+        # Poisson extinction: For Poisson, q = 1 if R0 <= 1, else solve q = exp(R0(q-1))
         if r0_target <= 1.0:
             ext_pois.append(1.0)
         else:
-            # Solve s = exp(R0(s-1)) for s < 1
+            # Solve q = exp(R0(q-1)) for q < 1 (supercritical case)
             def pois_fixed_point(s):
                 return np.exp(r0_target * (s - 1)) - s
             s_star = fsolve(pois_fixed_point, 0.5)[0]
@@ -294,6 +382,11 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     ax_a.add_patch(rect)
     
     # --- PANEL B: Forensic Entropy (Task "How") ---
+    # Analyzes how information about source attribution degrades as cluster size increases.
+    # Shannon entropy H(z|n) measures uncertainty in the posterior P(z|n).
+    # Attribution certainty = 1 - H/H_max quantifies how much information is retained.
+    # The "Forensic Horizon" (n=50) marks where certainty plateaus, indicating
+    # the limit of reliable source attribution for this subcritical process.
     ax_b = fig.add_subplot(gs[0, 1])
     
     print("   Computing forensic entropy...")
@@ -303,12 +396,14 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     
     for n in n_range:
         try:
+            # Compute posterior P(z|n) using flat prior
             post = attribute_source(p_nsb, n, prior_type="flat").numpy()
-            # Compute Shannon entropy
+            # Compute Shannon entropy: H(z|n) = -sum_z P(z|n) * log(P(z|n))
             h = -np.sum(post * np.log(post + 1e-10))
             h_vals.append(h)
-            # Maximum entropy for uniform distribution over z in [1, n]
+            # Maximum entropy for uniform distribution over z in [1, n] is log(n)
             h_max = np.log(n)
+            # Normalized certainty: 1 = perfect certainty, 0 = maximum uncertainty
             certainty_vals.append(1 - h / (h_max + 1e-10))
         except:
             # If computation fails for large n, use previous value
@@ -322,7 +417,8 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     h_vals = np.array(h_vals)
     certainty_vals = np.array(certainty_vals)
     
-    # Define Forensic Horizon (transition point)
+    # Define Forensic Horizon: transition point where certainty plateaus
+    # For SARS/MERS (R0 ≈ 0.95), this occurs around n=50
     forensic_horizon = 50
     
     # Shade the two regimes
@@ -374,6 +470,10 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     ax_b.grid(alpha=0.3, linestyle='--')
     
     # --- PANEL C: Branching Volatility (Task "Next") ---
+    # Compares offspring distribution tail probabilities across NSB, Poisson, and NegBin.
+    # Highlights two critical regimes:
+    # - k=0 (extinction): High p_0 causes PGF to contract near G(1)=1
+    # - k>5 (superspreading): Heavy tail introduces high-frequency components in PGF
     ax_c = fig.add_subplot(gs[1, 0])
     
     print("   Computing branching volatility...")
@@ -382,7 +482,7 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     p_pois = get_poisson_p_dist(r0_learned, len(k_display)).numpy()
     p_nb = get_nb_p_dist(r0_learned, len(k_display), overdispersion=0.1).numpy()
     
-    # Normalize for display
+    # Normalize distributions for display (ensure they sum to 1)
     p_nsb_display = p_nsb_display / p_nsb_display.sum()
     p_pois = p_pois / p_pois.sum()
     p_nb = p_nb / p_nb.sum()
@@ -415,18 +515,24 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     ax_c.grid(alpha=0.3, linestyle='--', axis='y')
     
     # --- PANEL D: Spectral Energy Dissipation ---
+    # Visualizes how recursive PGF G_m(s) = G(G_{m-1}(s)) contracts toward extinction
+    # probability q as generation m increases. This "spectral cooling" represents
+    # the loss of forensic memory: as outbreaks progress, information about founders
+    # is progressively lost. The color gradient (hot→cold) maps generation number.
     ax_d = fig.add_subplot(gs[1, 1])
     
     print("   Computing spectral energy dissipation...")
+    # Sample points on the unit circle: s = exp(i*θ) for θ ∈ [0, 2π]
     theta = np.linspace(0, 2 * np.pi, 1000)
     s_circle = np.exp(1j * theta)
     
-    # Get baseline distributions (matching panel (a) colors)
+    # Get baseline distributions (matching panel (a) colors for consistency)
     p_pois = get_poisson_p_dist(r0_learned, k_max)
     p_nb = get_nb_p_dist(r0_learned, k_max, overdispersion=0.1)
     
-    # Compute PGFs for different generations
+    # Compute PGFs for different generations (m=1, 2, 3, 5, 10)
     generations = [1, 2, 3, 5, 10]
+    # Color gradient: hot (red) for early generations → cold (blue) for later generations
     colors_gen = plt.cm.plasma(np.linspace(0.9, 0.1, len(generations)))
     
     # Plot NSB generation PGFs
@@ -445,15 +551,17 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     ax_d.plot(g_nb_gen1.real, g_nb_gen1.imag, color='#A23B72', ls=':', lw=2, 
              alpha=0.7, label="NegBin Baseline", zorder=2)
     
-    # Residual Shading: Area between Poisson and NSB (generation 1)
-    # Find points where both are in the visible range
+    # Overdispersion Gap Shading: Area between Poisson and NSB (generation 1)
+    # This shaded region quantifies the "superspreading gap" - the difference between
+    # the NSB's learned overdispersed distribution and the Poisson baseline.
     g_nsb_gen1 = compute_generation_pgf(p_nsb, 1, s_circle)
+    # Filter points within the visible zoom region
     mask = (g_nsb_gen1.real >= 0.5) & (g_nsb_gen1.real <= 1.1) & (g_nsb_gen1.imag >= -0.3) & (g_nsb_gen1.imag <= 0.3)
     mask_pois = (g_pois_gen1.real >= 0.5) & (g_pois_gen1.real <= 1.1) & (g_pois_gen1.imag >= -0.3) & (g_pois_gen1.imag <= 0.3)
     
-    # Interpolate to same length for filling
+    # Create filled polygon between NSB and Poisson curves
     if np.sum(mask) > 10 and np.sum(mask_pois) > 10:
-        # Sample points for filling
+        # Sample points for smooth filling
         n_fill = min(200, len(g_nsb_gen1))
         indices = np.linspace(0, len(g_nsb_gen1)-1, n_fill, dtype=int)
         indices_pois = np.linspace(0, len(g_pois_gen1)-1, n_fill, dtype=int)
@@ -461,7 +569,7 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
         g_nsb_fill = g_nsb_gen1[indices]
         g_pois_fill = g_pois_gen1[indices_pois]
         
-        # Create polygon for shading
+        # Create closed polygon: NSB curve → reversed Poisson curve
         fill_x = np.concatenate([g_nsb_fill.real, g_pois_fill.real[::-1]])
         fill_y = np.concatenate([g_nsb_fill.imag, g_pois_fill.imag[::-1]])
         ax_d.fill(fill_x, fill_y, color='orange', alpha=0.15, zorder=1, 
@@ -491,7 +599,8 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     ax_d.legend(loc='upper left', fontsize=9, frameon=True)
     ax_d.grid(alpha=0.2, linestyle='--')
     
-    # Add colorbar for generation mapping (use smaller fraction to not affect panel size)
+    # Add colorbar mapping generation number to color (plasma colormap)
+    # Use small fraction to avoid affecting panel size
     sm = plt.cm.ScalarMappable(cmap=plt.cm.plasma, 
                                norm=plt.Normalize(vmin=1, vmax=10))
     sm.set_array([])
@@ -499,8 +608,7 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     cbar.set_label("Generation ($m$): $G_m(s) = G(G_{m-1}(s))$", fontsize=9, rotation=270, labelpad=12)
     cbar.ax.tick_params(labelsize=8)
     
-    # Title removed to save space
-    
+    # Save figure
     save_figure(fig, "exp_task_how_next")
     print(f"Dashboard saved to '{CONFIG['output_dir_figures'] / 'exp_task_how_next.pdf'}'")
     plt.close()

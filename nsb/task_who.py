@@ -1,7 +1,17 @@
 """
 NSB Task Module: "Who" (Source Attribution)
-Implements Algorithm 3: One-Pass Patient Zero Attribution using the 
-Neural Otter-Dwass identity and epidemiological priors.
+
+This module implements Algorithm 3: One-Pass Patient Zero Attribution, which solves
+the forensic question "Who started the outbreak?" by inferring the number of founders
+(patient zeros) Z from an observed cluster size C = n.
+
+The algorithm leverages:
+1. The Neural Otter-Dwass identity: P(C=n | Z=z) = (z/n) * [s^{n-z}] G(s)^n
+2. Spectral methods (FFT) for efficient n-fold convolution
+3. Bayesian inference with epidemiological priors (Flat, Poisson, Negative Binomial)
+
+The method achieves O(nK log(nK)) complexity, enabling real-time source attribution
+even for large clusters.
 """
 
 import torch
@@ -11,8 +21,24 @@ from typing import Optional, Dict, Union
 
 def get_prior(n: int, prior_type: str = "flat", params: Optional[Dict] = None, device: str = "cpu") -> torch.Tensor:
     """
-    Generates the epidemiological prior pi(z) for the number of founders.
-    Realigned with the three archetypes: Poisson, Flat, and Negative Binomial.
+    Generates the epidemiological prior π(z) for the number of founders (patient zeros).
+
+    Three prior archetypes are supported, each representing different epidemiological
+    scenarios:
+    - "flat": Clinical/high-traffic settings with uniform risk of seeding
+    - "community": Sparse, independent introductions (Poisson distribution)
+    - "clustered": Overdispersed seeding events (Negative Binomial distribution)
+
+    Args:
+        n: Maximum number of founders to consider (support is z ∈ {1, 2, ..., n})
+        prior_type: Type of prior ("flat", "community", or "clustered")
+        params: Optional dictionary of prior parameters:
+            - For "community": {"lambda": float} (Poisson mean)
+            - For "clustered": {"r": float, "p": float} (NB shape and success prob)
+        device: Device to create tensors on ("cpu" or "cuda")
+
+    Returns:
+        torch.Tensor: Normalized prior distribution π(z) for z ∈ {1, 2, ..., n}
     """
     z_range = torch.arange(1, n + 1, device=device).float()
     
@@ -53,15 +79,27 @@ def attribute_source(
 ) -> torch.Tensor:
     """
     Implementation of Algorithm 3: One-Pass Patient Zero Attribution.
+
+    This function computes the posterior distribution P(Z=z | C=n) using the
+    Neural Otter-Dwass identity and spectral methods. The algorithm:
+    1. Pads the offspring distribution to length L = 2^ceil(log2(n*(K-1)+1))
+    2. Computes G(s)^n via FFT: p_hat^n
+    3. Inverts via IFFT to get coefficients of G(s)^n
+    4. Extracts likelihoods using Otter-Dwass: P(C=n|Z=z) = (z/n) * [s^{n-z}] G(s)^n
+    5. Applies Bayesian update: P(Z=z|C=n) ∝ P(C=n|Z=z) * π(z)
     
     Args:
         p_dist (torch.Tensor): Offspring distribution {p_k} of length K.
-        n (int): Observed aggregate cluster size.
-        prior_type (str): 'flat', 'community', or 'clustered'.
-        prior_params (dict): Parameters for the chosen prior.
+                              Must be normalized (sums to ~1.0).
+        n (int): Observed aggregate cluster size (must be positive).
+        prior_type (str): Prior type: 'flat', 'community', or 'clustered'.
+        prior_params (dict, optional): Parameters for the chosen prior:
+            - For "community": {"lambda": float}
+            - For "clustered": {"r": float, "p": float}
         
     Returns:
-        torch.Tensor: The posterior distribution P(Z=z | C=n) for z in {1..n}.
+        torch.Tensor: The posterior distribution P(Z=z | C=n) for z ∈ {1, 2, ..., n}.
+                      Normalized to sum to 1.0.
     """
     device = p_dist.device
     K = len(p_dist)
