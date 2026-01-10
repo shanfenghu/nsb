@@ -280,6 +280,7 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     
     metrics = compute_how_metrics(p_nsb)
     r0_learned = metrics['r0']
+    h_source = metrics['entropy']  # Intrinsic source entropy H[p_k]
     k_max = len(p_nsb)
     
     # --- PANEL A: Extinction Phase Transition ---
@@ -383,9 +384,18 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     
     # --- PANEL B: Forensic Entropy (Task "How") ---
     # Analyzes how information about source attribution degrades as cluster size increases.
-    # Shannon entropy H(z|n) measures uncertainty in the posterior P(z|n).
-    # Attribution certainty = 1 - H/H_max quantifies how much information is retained.
-    # The "Forensic Horizon" (n=50) marks where certainty plateaus, indicating
+    # 
+    # The panel visualizes two complementary entropy measures:
+    # 1. Intrinsic Source Entropy H[p_k]: The Shannon entropy of the offspring distribution
+    #    itself. This is a single scalar value that validates the theoretical theorem
+    #    characterizing entropy collapse at R0 = 1. It represents the "ceiling" of
+    #    information content in the transmission law.
+    # 2. Posterior Entropy H(z|n): The Shannon entropy of the posterior P(z|n), which
+    #    measures the detective's uncertainty after observing cluster size n. This
+    #    shows how the source entropy information decays as outbreaks expand.
+    #
+    # Attribution certainty = 1 - H(z|n)/H_max quantifies how much information is
+    # retained. The "Forensic Horizon" (n=50) marks where certainty plateaus, indicating
     # the limit of reliable source attribution for this subcritical process.
     ax_b = fig.add_subplot(gs[0, 1])
     
@@ -430,9 +440,17 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
                 label="Information Oblivion: Loss of Identifiability")
     
     # Primary axis: Entropy (use different color from panel (a))
-    line1 = ax_b.plot(n_range, h_vals, color='#2E86AB', lw=3, label="Shannon Entropy $\\mathcal{H}(z|n)$", zorder=3)
+    line1 = ax_b.plot(n_range, h_vals, color='#2E86AB', lw=3, label="Source Attribution Entropy $H[P(Z=z|C=n;\\theta)]$", zorder=3)
+    
+    # Add horizontal line for intrinsic source entropy H[p_k] (theoretical ceiling)
+    # This represents the entropy of the offspring distribution itself, which sets
+    # the upper bound on information content according to the theorem.
+    h_source_label = f"Offspring Entropy $H(Y;\\theta) = -\sum p_k \log p_k={h_source:.3f}$"
+    ax_b.axhline(h_source, color='#8B4513', ls='-.', lw=2.5, alpha=0.8, zorder=4,
+                label=h_source_label)
+    
     ax_b.set_xlabel("Cluster Size ($n$)", fontsize=12, fontweight='bold')
-    ax_b.set_ylabel("Shannon Entropy of Founder Sizes $H(z|n)$", fontsize=12, fontweight='bold', color='#2E86AB')
+    ax_b.set_ylabel("Entropy of Founders $H[P(Z=z|C=n;\\theta)]$", fontsize=12, fontweight='bold', color='#2E86AB')
     ax_b.tick_params(axis='y', labelcolor='#2E86AB')
     
     # Secondary axis: Attribution Certainty (use different color from panel (a))
@@ -444,6 +462,45 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     ax_b2.tick_params(axis='y', labelcolor='#FF6B35')
     ax_b2.set_ylim(0, 1.05)
     
+    # Find intersection point between posterior entropy and source entropy
+    # This is the critical n where attribution uncertainty transitions from below to above source entropy.
+    # Below this n: Source attribution entropy < offspring entropy → observing small clusters provides
+    #               high certainty about founders (fewer paths to reach n).
+    # Above this n: Source attribution entropy > offspring entropy → larger clusters have many more
+    #               possible transmission paths, making founder identification increasingly uncertain.
+    intersection_idx = None
+    for i in range(len(h_vals) - 1):
+        if (h_vals[i] <= h_source and h_vals[i+1] >= h_source) or \
+           (h_vals[i] >= h_source and h_vals[i+1] <= h_source):
+            # Linear interpolation to find exact intersection
+            if h_vals[i+1] != h_vals[i]:
+                t = (h_source - h_vals[i]) / (h_vals[i+1] - h_vals[i])
+                n_intersection = n_range[i] + t * (n_range[i+1] - n_range[i])
+            else:
+                n_intersection = n_range[i]
+            intersection_idx = i
+            break
+    
+    # If no crossing found, find the closest point
+    if intersection_idx is None:
+        intersection_idx = np.argmin(np.abs(h_vals - h_source))
+        n_intersection = n_range[intersection_idx]
+    
+    # Round up to the nearest integer (ceiling)
+    n_intersection_rounded = int(np.ceil(n_intersection))
+    
+    # Add vertical dashed line at intersection point (use rounded value)
+    ax_b.axvline(n_intersection_rounded, color='#D32F2F', ls='--', lw=2, alpha=0.8, zorder=5,
+                label=f"Entropy Crossover ($n = {n_intersection_rounded}$)")
+    
+    # Add marker at intersection point (use actual intersection for y-position)
+    h_intersection = h_source  # They intersect at h_source
+    # Find the entropy value at the rounded n
+    rounded_idx = np.argmin(np.abs(n_range - n_intersection_rounded))
+    h_at_rounded = h_vals[rounded_idx] if rounded_idx < len(h_vals) else h_source
+    ax_b.scatter([n_intersection_rounded], [h_at_rounded], color='#D32F2F', s=150, 
+                zorder=6, marker='o', edgecolors='white', linewidths=2)
+    
     # Add "Forensic Horizon" vertical line
     ax_b.axvline(forensic_horizon, color='black', ls='--', lw=2, alpha=0.7, zorder=4)
     # Find certainty value at horizon for annotation
@@ -454,15 +511,21 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
              bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.9, 
                       edgecolor='black', linewidth=1.5))
     
-    # Combine legends (include shaded regions and Forensic Horizon)
+    # Combine legends (include shaded regions, Forensic Horizon, source entropy line, and intersection)
     patch1 = Patch(facecolor='green', alpha=0.2, label="Forensic Window: High-Signal Seeding")
     patch2 = Patch(facecolor='gray', alpha=0.2, label="Information Oblivion: Loss of Identifiability")
     horizon_line = Line2D([0], [0], color='black', ls='--', lw=2.5, alpha=0.7, label="Forensic Horizon ($n = 50$): Maximum Resolution")
+    source_entropy_line = Line2D([0], [0], color='#8B4513', ls='-.', lw=2.5, alpha=0.8, 
+                                 label=h_source_label)
+    intersection_line = Line2D([0], [0], color='#D32F2F', ls='--', lw=2, alpha=0.8, 
+                               marker='o', markersize=8, markeredgecolor='white', markeredgewidth=1.5,
+                               label=f"Entropy Crossover ($n = {n_intersection_rounded}$): Evidence Criticality")
     lines = line1 + line2
     labels = [l.get_label() for l in lines]
-    # Add patches and horizon line to legend
-    handles = [patch1, patch2, horizon_line] + lines
-    legend_labels = [patch1.get_label(), patch2.get_label(), horizon_line.get_label()] + labels
+    # Add patches, horizon line, source entropy line, and intersection line to legend
+    handles = [patch1, patch2, horizon_line, source_entropy_line, intersection_line] + lines
+    legend_labels = [patch1.get_label(), patch2.get_label(), horizon_line.get_label(), 
+                    source_entropy_line.get_label(), intersection_line.get_label()] + labels
     ax_b.legend(handles, legend_labels, loc='center right', fontsize=10, frameon=True)
     
     ax_b.set_title("(b) Forensic Information Horizon/Resolution", 
