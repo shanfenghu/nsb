@@ -46,8 +46,8 @@ CONFIG = {
         'batch_size': 128,
         'hidden_dim': 64,
     },
-    'n_seeds': 5,  # Number of random seeds for stability analysis
-    'seeds': list(range(5))  # Seeds [0, 1, 2, 3, 4] matching exp_outbreaktrees.py for consistency
+    'n_seeds': 20,  # Number of random seeds for stability analysis
+    'seeds': list(range(20))  # Seeds [0, 1, ..., 19] matching exp_outbreaktrees.py for consistency
 }
 
 # --------------------------------------------------------------------------
@@ -376,7 +376,7 @@ def plot_training_dynamics(history: dict, stability: dict, config: dict):
     
     # Plot mean with shaded std region
     ax_b.plot(epochs, mean_ll, '-', color=NSB_COLORS['nsb'], 
-              linewidth=3, label='Mean (5 seeds)', zorder=3)
+              linewidth=3, label='Mean (20 seeds)', zorder=3)
     ax_b.fill_between(epochs, mean_ll - std_ll, mean_ll + std_ll, 
                       color=NSB_COLORS['nsb'], alpha=0.2, 
                       label='±1 Std Dev', zorder=2)
@@ -400,7 +400,7 @@ def plot_training_dynamics(history: dict, stability: dict, config: dict):
     
     # Plot mean with shaded std region (using same color as sample complexity experiment)
     ax_c.plot(epochs, mean_tail_kl, '-', color=NSB_COLORS['nsb_subcritical'], 
-              linewidth=3, label='Mean (5 seeds)', zorder=3)
+              linewidth=3, label='Mean (20 seeds)', zorder=3)
     ax_c.fill_between(epochs, mean_tail_kl - std_tail_kl, mean_tail_kl + std_tail_kl, 
                       color=NSB_COLORS['nsb_subcritical'], alpha=0.2, 
                       label='±1 Std Dev', zorder=2)
