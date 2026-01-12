@@ -1,9 +1,9 @@
-# Forensic Cascade Inference via Neural Stick-Breaking
+# Neural Stick-Breaking for Cascade Forensics
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)
 
-This repository contains the official implementation for the KDD 2026 manuscript submission, "Forensic Cascade Inference via Neural Stick-Breaking". We introduce the Neural Stick-Breaking (NSB) process, a novel recursive generative model that learns complete probability distributions over countably infinite support. The NSB process uses a recurrent neural network to parameterize a stick-breaking construction, enabling flexible, data-driven modeling of transmission cascades in epidemiological outbreaks.
+This repository contains the official implementation for the KDD 2026 manuscript revision, "Neural Stick-Breaking for Cascade Forensics". We introduce the Neural Stick-Breaking (NSB) process, a novel recursive generative model that learns complete probability distributions over countably infinite support. The NSB process uses a recurrent neural network to parameterize a stick-breaking construction, enabling flexible, data-driven modeling of transmission cascades in epidemiological outbreaks.
 
 Our framework unifies **Neural** (learned transmission laws), **Symbolic** (probability generating function geometry), and **Spectral** (FFT-based one-pass algorithms) components to address three fundamental forensic questions:
 
