@@ -25,7 +25,7 @@ from count_parameters import count_parameters
 
 # --- Configuration ---
 CONFIG = {
-    'seeds': list(range(5)),
+    'seeds': list(range(20)),  # Increased to 20 for better statistical power
     'data_path': Path("data") / "outbreaktrees_sars_mers_counts.csv",
     'test_size': 0.2,
     'output_dir_results': Path("results"),

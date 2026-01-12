@@ -1,14 +1,14 @@
-\begin{tabular}{lccc}
+\begin{tabular}{lcccl}
 \toprule
-Model & Test LL $\uparrow$ & Tail KL $\downarrow$ & Num. Params \\
+\textbf{Model} & \textbf{Test LL} $\uparrow$ & \textbf{Tail KL} $\downarrow$ & \textbf{Num. Params} & \textbf{vs. NSB} \\
 \midrule
-NSB & \textbf{$-0.85 \pm 0.13$} & \textbf{$0.43 \pm 0.10$} & 4,289 \\
-NSB-GRU & $-0.85 \pm 0.13$ & $0.44 \pm 0.10$ & 4,591 \\
-NSB-LSTM & $-0.85 \pm 0.13$ & $0.44 \pm 0.10$ & 4,486 \\
-NSB-Attention & $-0.86 \pm 0.12$ & $0.52 \pm 0.21$ & 4,409 \\
-Softmax NN (Fair) & $-0.86 \pm 0.11$ & $0.46 \pm 0.15$ & 4,282 \\
-Softmax NN & $-0.87 \pm 0.11$ & $0.54 \pm 0.18$ & 9,943 \\
-Negative Binomial & $-0.88 \pm 0.13$ & $0.61 \pm 0.13$ & 2 \\
-Poisson & $-2.21 \pm 0.24$ & $2.89 \pm 0.78$ & 1 \\
+NSB & $-0.86 \pm 0.12$ & $0.54 \pm 0.17$ & 4,289 & — \\
+NSB-GRU & $-0.86 \pm 0.12$ & $0.55 \pm 0.17$ & 4,591 & $p=0.122$ \\
+NSB-LSTM & \textbf{$-0.86 \pm 0.12$} & \textbf{$0.54 \pm 0.15$} & 4,486 & $p=0.702$ \\
+NSB-Attention & $-0.90 \pm 0.13$ & $0.78 \pm 0.39$ & 4,409 & $p<0.001^{***}$ \\
+Softmax NN (Fair) & $-0.88 \pm 0.12$ & $0.60 \pm 0.26$ & 4,435 & $p=0.005^{**}$ \\
+Softmax NN & $-0.89 \pm 0.12$ & $0.67 \pm 0.29$ & 9,943 & $p=0.002^{**}$ \\
+Negative Binomial & $-0.88 \pm 0.12$ & $0.67 \pm 0.16$ & 2 & $p<0.001^{***}$ \\
+Poisson & $-2.70 \pm 0.77$ & $3.13 \pm 1.09$ & 1 & $p<0.001^{***}$ \\
 \bottomrule
 \end{tabular}

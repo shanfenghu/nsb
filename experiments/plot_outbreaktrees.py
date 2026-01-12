@@ -15,6 +15,7 @@ from matplotlib.patches import Circle
 from matplotlib.lines import Line2D
 from matplotlib.gridspec import GridSpec
 from sklearn.model_selection import train_test_split
+from scipy import stats
 from pathlib import Path
 
 # --- Local Imports ---
@@ -29,7 +30,7 @@ from plot_utils import setup_plot_style, save_figure, NSB_COLORS
 
 # --- Configuration ---
 CONFIG = {
-    'seeds': list(range(5)),
+    'seeds': list(range(20)),  # Match exp_outbreaktrees.py (increased to 20)
     'data_path': Path("data") / "outbreaktrees_sars_mers_counts.csv",
     'test_size': 0.2,
     'output_dir_results': Path("results"),
@@ -181,9 +182,69 @@ def create_tables(results_df: pd.DataFrame):
     best_ll = summary[('Test Log-Likelihood', 'mean')].max()
     best_kl = summary[('Tail KL Divergence', 'mean')].min()
 
-    latex_str = "\\begin{tabular}{lccc}\n"
+    # Compute statistical significance: paired t-tests comparing each model to NSB
+    nsb_ll = main_df[main_df['Model'] == 'NSB']['Test Log-Likelihood'].values
+    nsb_kl = main_df[main_df['Model'] == 'NSB']['Tail KL Divergence'].values
+    
+    def compute_pvalue(model_name, metric='Test Log-Likelihood'):
+        """Compute p-value from paired t-test comparing model to NSB."""
+        if model_name == 'NSB':
+            return '—'  # No comparison for NSB itself
+        
+        model_values = main_df[main_df['Model'] == model_name][metric].values
+        if len(model_values) != len(nsb_ll):
+            return '—'
+        
+        if metric == 'Test Log-Likelihood':
+            # For Test LL, higher is better, so test if NSB > model (one-tailed)
+            # We do two-tailed and interpret: if NSB is significantly better, p will be small
+            t_stat, p_value = stats.ttest_rel(nsb_ll, model_values)
+            # If NSB mean > model mean, this is good (one-tailed p = p_value/2)
+            if np.mean(nsb_ll) > np.mean(model_values):
+                p_value = p_value / 2
+            else:
+                p_value = 1 - p_value / 2
+        else:  # Tail KL Divergence
+            # For Tail KL, lower is better, so test if NSB < model (one-tailed)
+            t_stat, p_value = stats.ttest_rel(nsb_kl, model_values)
+            # If NSB mean < model mean, this is good (one-tailed p = p_value/2)
+            if np.mean(nsb_kl) < np.mean(model_values):
+                p_value = p_value / 2
+            else:
+                p_value = 1 - p_value / 2
+        
+        # Format p-value
+        if p_value < 0.001:
+            return '$p<0.001$'
+        elif p_value < 0.01:
+            return f'$p={p_value:.3f}$'
+        elif p_value < 0.05:
+            return f'$p={p_value:.3f}$'
+        else:
+            return f'$p={p_value:.3f}$'
+    
+    def format_pvalue(p_str):
+        """Format p-value with significance markers.
+        Convention: *** for p<0.001, ** for 0.001<=p<0.01, * for 0.01<=p<0.05
+        """
+        if p_str == '—':
+            return '—'
+        if '<0.001' in p_str:
+            return '$p<0.001^{***}$'
+        # Extract numeric value
+        p_num = float(p_str.replace('$p=', '').replace('$', ''))
+        if p_num < 0.001:
+            return f'$p={p_num:.3f}^{{***}}$'
+        elif p_num < 0.01:
+            return f'$p={p_num:.3f}^{{**}}$'
+        elif p_num < 0.05:
+            return f'$p={p_num:.3f}^{{*}}$'
+        else:
+            return p_str
+
+    latex_str = "\\begin{tabular}{lcccl}\n"
     latex_str += "\\toprule\n"
-    latex_str += "Model & Test LL $\\uparrow$ & Tail KL $\\downarrow$ & Num. Params \\\\\n"
+    latex_str += "\\textbf{Model} & \\textbf{Test LL} $\\uparrow$ & \\textbf{Tail KL} $\\downarrow$ & \\textbf{Num. Params} & \\textbf{vs. NSB} \\\\\n"
     latex_str += "\\midrule\n"
     for model_name, row in summary.iterrows():
         ll_mean, ll_std = row[('Test Log-Likelihood', 'mean')], row[('Test Log-Likelihood', 'std')]
@@ -195,8 +256,13 @@ def create_tables(results_df: pd.DataFrame):
         
         kl_str = f"${kl_mean:.2f} \\pm {kl_std:.2f}$"
         if kl_mean == best_kl: kl_str = f"\\textbf{{{kl_str}}}"
+        
+        # Compute p-value using Test LL (more stable metric with better statistical power)
+        # Tail KL has high variance due to rare event estimation, making significance harder
+        p_value_str = compute_pvalue(model_name, 'Test Log-Likelihood')
+        p_value_formatted = format_pvalue(p_value_str)
 
-        latex_str += f"{model_name} & {ll_str} & {kl_str} & {num_params:,} \\\\\n"
+        latex_str += f"{model_name} & {ll_str} & {kl_str} & {num_params:,} & {p_value_formatted} \\\\\n"
     latex_str += "\\bottomrule\n\\end{tabular}"
     
     table_path = CONFIG['output_dir_results'] / "real_world_benchmark_table.tex"
