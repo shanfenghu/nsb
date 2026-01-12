@@ -183,6 +183,9 @@ python experiments/exp_moment_analysis.py
 
 # Hidden dimension sensitivity
 python experiments/exp_hidden_size.py
+
+# Training dynamics and convergence analysis
+python experiments/exp_training_dynamics.py
 ```
 
 All figures are saved to the `figures/` directory in both PDF and PNG formats.
