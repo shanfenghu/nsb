@@ -44,6 +44,7 @@ The spectral inversion engine achieves O(nK log(nK)) complexity, enabling real-t
 │   ├── exp_complexity.py          # Computational complexity benchmarks
 │   ├── exp_moment_analysis.py     # Moment analysis experiments
 │   ├── exp_hidden_size.py         # Hidden dimension sensitivity
+│   ├── exp_training_dynamics.py   # Training dynamics and convergence analysis
 │   ├── plot_outbreaktrees.py      # Transmission tree visualization
 │   ├── plot_synthetic.py          # Synthetic data visualization
 │   ├── plot_utils.py              # Shared plotting utilities
