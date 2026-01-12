@@ -394,15 +394,16 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     #    measures the detective's uncertainty after observing cluster size n. This
     #    shows how the source entropy information decays as outbreaks expand.
     #
-    # Attribution certainty = 1 - H(z|n)/H_max quantifies how much information is
-    # retained. The "Forensic Horizon" (n=50) marks where certainty plateaus, indicating
-    # the limit of reliable source attribution for this subcritical process.
+    # Relative Entropy H(z|n)/log(n) normalizes posterior entropy by the maximum possible
+    # entropy (uniform distribution over z ∈ {1, ..., n}). The "Information Horizon" (n≈50)
+    # marks where relative entropy saturates (approaches a constant), indicating the limit
+    # of reliable source attribution for this subcritical process. Beyond this horizon,
+    # additional cases provide no new information about founders.
     ax_b = fig.add_subplot(gs[0, 1])
     
     print("   Computing forensic entropy...")
     n_range = np.arange(2, 201, 2)  # Cluster sizes from 2 to 200
     h_vals = []
-    certainty_vals = []  # Attribution certainty = 1 - H/H_max
     
     for n in n_range:
         try:
@@ -411,35 +412,35 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
             # Compute Shannon entropy: H(z|n) = -sum_z P(z|n) * log(P(z|n))
             h = -np.sum(post * np.log(post + 1e-10))
             h_vals.append(h)
-            # Maximum entropy for uniform distribution over z in [1, n] is log(n)
-            h_max = np.log(n)
-            # Normalized certainty: 1 = perfect certainty, 0 = maximum uncertainty
-            certainty_vals.append(1 - h / (h_max + 1e-10))
         except:
             # If computation fails for large n, use previous value
             if len(h_vals) > 0:
                 h_vals.append(h_vals[-1])
-                certainty_vals.append(certainty_vals[-1])
             else:
                 h_vals.append(0)
-                certainty_vals.append(0)
     
     h_vals = np.array(h_vals)
-    certainty_vals = np.array(certainty_vals)
     
-    # Define Forensic Horizon: transition point where certainty plateaus
+    # Compute relative entropy: H(z|n)/log(n)
+    # This normalizes posterior entropy by the maximum possible entropy (uniform distribution)
+    # Maximum entropy for uniform distribution over z in [1, n] is log(n)
+    h_max_vals = np.log(n_range)
+    h_relative_vals = h_vals / (h_max_vals + 1e-10)
+    
+    # Define Information Horizon: transition point where relative entropy saturates
     # For SARS/MERS (R0 ≈ 0.95), this occurs around n=50
+    # Saturation means relative entropy approaches a constant (no longer decreases)
     forensic_horizon = 50
     
     # Shade the two regimes
     # Forensic Window (n < 50): Active Attribution Zone
     ax_b.axvspan(0, forensic_horizon, color='green', alpha=0.2, zorder=0, 
                 label="Forensic Window: High-Signal Seeding")
-    # Information Oblivion (n > 50): Spectral Saturation
+    # Information Oblivion (n > 50): Relative Entropy Saturation
     ax_b.axvspan(forensic_horizon, n_range[-1], color='gray', alpha=0.2, zorder=0,
                 label="Information Oblivion: Loss of Identifiability")
     
-    # Primary axis: Entropy (use different color from panel (a))
+    # Primary axis: Absolute Entropy (use different color from panel (a))
     line1 = ax_b.plot(n_range, h_vals, color='#2E86AB', lw=3, label="Source Attribution Entropy $H[P(Z=z|C=n;\\theta)]$", zorder=3)
     
     # Add horizontal line for intrinsic source entropy H[p_k] (theoretical ceiling)
@@ -453,13 +454,15 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     ax_b.set_ylabel("Entropy of Founders $H[P(Z=z|C=n;\\theta)]$", fontsize=12, fontweight='bold', color='#2E86AB')
     ax_b.tick_params(axis='y', labelcolor='#2E86AB')
     
-    # Secondary axis: Attribution Certainty (use different color from panel (a))
+    # Secondary axis: Relative Entropy (use different color from panel (a))
+    # This is the key metric: H(z|n)/log(n) saturates at the information horizon
     ax_b2 = ax_b.twinx()
-    line2 = ax_b2.plot(n_range, certainty_vals, color='#FF6B35', lw=2.5, ls='--', 
-                       alpha=0.8, label="Source Attribution Certainty", zorder=2)
-    ax_b2.set_ylabel("Normalised Attribution Certainty", 
+    line2 = ax_b2.plot(n_range, h_relative_vals, color='#FF6B35', lw=2.5, ls='--', 
+                       alpha=0.8, label="Relative Entropy $H[P(Z=z|C=n;\\theta)]/\\log(n)$", zorder=2)
+    ax_b2.set_ylabel("Relative Entropy $H[P(Z=z|C=n;\\theta)]/\\log(n)$", 
                      fontsize=12, fontweight='bold', color='#FF6B35')
     ax_b2.tick_params(axis='y', labelcolor='#FF6B35')
+    # Relative entropy ranges from 0 (perfect certainty) to 1 (maximum uncertainty)
     ax_b2.set_ylim(0, 1.05)
     
     # Find intersection point between posterior entropy and source entropy
@@ -501,20 +504,21 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     ax_b.scatter([n_intersection_rounded], [h_at_rounded], color='#D32F2F', s=150, 
                 zorder=6, marker='o', edgecolors='white', linewidths=2)
     
-    # Add "Forensic Horizon" vertical line
+    # Add "Information Horizon" vertical line
+    # This marks where relative entropy saturates (approaches a constant)
     ax_b.axvline(forensic_horizon, color='black', ls='--', lw=2, alpha=0.7, zorder=4)
-    # Find certainty value at horizon for annotation
+    # Find relative entropy value at horizon for annotation
     horizon_idx = np.argmin(np.abs(n_range - forensic_horizon))
-    horizon_certainty = certainty_vals[horizon_idx] if horizon_idx < len(certainty_vals) else 0
-    ax_b.text(forensic_horizon, ax_b.get_ylim()[1] * 0.95, 'Forensic\nHorizon', 
+    horizon_relative_entropy = h_relative_vals[horizon_idx] if horizon_idx < len(h_relative_vals) else 0
+    ax_b.text(forensic_horizon, ax_b.get_ylim()[1] * 0.95, 'Information\nHorizon', 
              fontsize=10, ha='center', va='top', fontweight='bold',
              bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.9, 
                       edgecolor='black', linewidth=1.5))
     
-    # Combine legends (include shaded regions, Forensic Horizon, source entropy line, and intersection)
+    # Combine legends (include shaded regions, Information Horizon, source entropy line, and intersection)
     patch1 = Patch(facecolor='green', alpha=0.2, label="Forensic Window: High-Signal Seeding")
     patch2 = Patch(facecolor='gray', alpha=0.2, label="Information Oblivion: Loss of Identifiability")
-    horizon_line = Line2D([0], [0], color='black', ls='--', lw=2.5, alpha=0.7, label="Forensic Horizon ($n = 50$): Maximum Resolution")
+    horizon_line = Line2D([0], [0], color='black', ls='--', lw=2.5, alpha=0.7, label="Information Horizon ($n = 50$): Relative Entropy Saturation")
     source_entropy_line = Line2D([0], [0], color='#8B4513', ls='-.', lw=2.5, alpha=0.8, 
                                  label=h_source_label)
     intersection_line = Line2D([0], [0], color='#D32F2F', ls='--', lw=2, alpha=0.8, 
