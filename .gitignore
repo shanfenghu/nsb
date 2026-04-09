@@ -1,0 +1,28 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Packaging / install artifacts
+*.egg
+*.egg-info/
+.eggs/
+build/
+dist/
+sdist/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+
+# Pytest / type / lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local envs (optional)
+.venv/
+venv/
+env/
+
+# OS
+.DS_Store
