@@ -31,6 +31,22 @@ def _add_kv(rows: list[dict[str, Any]], *, experiment: str, key: str, value: Any
     )
 
 
+def _abc_variant_tag(csv_path: Path) -> str:
+    """
+    Stable short label from filename so multiple ABC summaries for the same n
+    (e.g. default vs high-sample) do not collide in the aggregate CSV.
+    """
+    stem = csv_path.stem
+    if stem == "rebuttal_abc_summary":
+        return "default"
+    prefix, suffix = "rebuttal_abc_", "_summary"
+    if stem.startswith(prefix) and stem.endswith(suffix):
+        mid = stem[len(prefix) : -len(suffix)]
+        if mid:
+            return mid
+    return stem
+
+
 def _summarize_abc(results_dir: Path, rows: list[dict[str, Any]]) -> None:
     abc_dir = results_dir / "abc"
     if not abc_dir.exists():
@@ -43,7 +59,8 @@ def _summarize_abc(results_dir: Path, rows: list[dict[str, Any]]) -> None:
             continue
         r = agg.iloc[0].to_dict()
         n = r.get("n", "")
-        exp = f"A_abc_exact_vs_sim(n={n})"
+        tag = _abc_variant_tag(csv_path)
+        exp = f"A_abc_exact_vs_sim(n={n},{tag})"
 
         _add_kv(rows, experiment=exp, key="TV_mean", value=r.get("TV"), std=r.get("TV_std"))
         _add_kv(rows, experiment=exp, key="KL_mean", value=r.get("KL"), std=r.get("KL_std"))
