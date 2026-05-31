@@ -1,22 +1,21 @@
 """
 exp_task_who.py: Duality Validation Dashboard
 
-Generates a 1x2 grid dashboard (with Panel A spanning full height) that validates the
-Neural-Symbolic-Spectral Duality for SARS/MERS transmission data using the Neural
-Stick-Breaking (NSB) model.
+Generates a 1x2 grid dashboard (with the source-attribution panel spanning full height)
+that validates the Neural-Symbolic-Spectral Duality for SARS/MERS transmission data using
+the Neural Stick-Breaking (NSB) model.
 
-Panels:
-    A. Forensic "Cold Case" Reconstruction: Out-of-sample source attribution on the
-       largest unseen cluster, showing posterior distributions under different priors
-       (Flat, Poisson, Negative Binomial) and sensitivity analysis
-    B. Spectral Signature: PGF G(s) evaluated on the unit circle, showing the internal
-       mathematical representation of the learned transmission law
-    C. Computational Shield: Log-log plot demonstrating O(nK log(nK)) scaling vs.
-       exponential and quadratic baselines
+Subplots:
+    - Forensic "Cold Case" Reconstruction: Out-of-sample source attribution on the
+      largest unseen cluster, showing posterior distributions under different priors
+      (Flat, Poisson, Negative Binomial) and sensitivity analysis
+    - Spectral Signature: PGF G(s) evaluated on the unit circle, showing the internal
+      mathematical representation of the learned transmission law
+    - Computational Shield: Log-log plot demonstrating O(nK log(nK)) scaling vs.
+      exponential and quadratic baselines
 
-This dashboard serves as the "scientific closer" of the paper, unifying Neural
-(SARS/MERS learned law), Symbolic (PGF geometry), and Spectral (One-pass scaling)
-components.
+This dashboard unifies Neural (SARS/MERS learned law), Symbolic (PGF geometry), and
+Spectral (One-pass scaling) components.
 """
 
 import torch
@@ -231,7 +230,7 @@ def fit_prior_parameters(founder_counts_path: Path, train_data: np.ndarray,
         }
 
 # --------------------------------------------------------------------------
-# 2. BASELINE DISTRIBUTIONS (For Panel B)
+# 2. BASELINE DISTRIBUTIONS (for spectral signature subplot)
 # --------------------------------------------------------------------------
 
 def get_poisson_p_dist(r0: float, k_max: int) -> torch.Tensor:
@@ -286,7 +285,7 @@ def get_nb_p_dist(r0: float, k_max: int, overdispersion: float = 0.1) -> torch.T
     return p_dist / p_dist.sum()
 
 # --------------------------------------------------------------------------
-# 3. SENSITIVITY ANALYSIS (For Panel A Inset)
+# 3. SENSITIVITY ANALYSIS (for cold-case reconstruction inset)
 # --------------------------------------------------------------------------
 
 def scale_offspring_distribution(p_dist: torch.Tensor, scale_factor: float) -> torch.Tensor:
@@ -297,7 +296,7 @@ def scale_offspring_distribution(p_dist: torch.Tensor, scale_factor: float) -> t
     binary search to achieve the target R0 = scale_factor * R0_original.
     
     This preserves the shape of the distribution while adjusting the mean, enabling
-    sensitivity analysis across different R0 values (e.g., for Panel A heatmap).
+    sensitivity analysis across different R0 values (e.g., for the sensitivity heatmap).
     
     Args:
         p_dist: Original offspring probability distribution
@@ -353,7 +352,7 @@ def scale_offspring_distribution(p_dist: torch.Tensor, scale_factor: float) -> t
     return torch.from_numpy(p_scaled).float().to(device)
 
 # --------------------------------------------------------------------------
-# 4. COMPLEXITY BENCHMARKING (For Panel C)
+# 4. COMPLEXITY BENCHMARKING (for computational shield subplot)
 # --------------------------------------------------------------------------
 
 def run_benchmarks(n_range, k_depth, p_dist):
@@ -402,12 +401,12 @@ def plot_duality_dashboard(p_nsb: torch.Tensor, n_test_max: int, z_true: int,
     
     This function generates the main validation figure that unifies Neural (learned
     transmission law), Symbolic (PGF geometry), and Spectral (computational scaling)
-    components. Panel A spans the full height on the left, with Panels B and C stacked
-    on the right.
+    components. The source-attribution panel spans the full height on the left, with
+    the spectral signature and computational shield panels stacked on the right.
     
     Args:
         p_nsb: Learned offspring distribution from NSB model (normalized)
-        n_test_max: Maximum cluster size in test set (used for Panel A reconstruction)
+        n_test_max: Maximum cluster size in test set (used for cold-case reconstruction)
         z_true: Ground truth number of founders for the cluster of size n_test_max
         pathogen_name: Name of pathogen for title annotations (default: "SARS/MERS")
         test_data: Optional test data array (currently unused, kept for compatibility)

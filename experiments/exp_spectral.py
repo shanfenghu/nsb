@@ -141,7 +141,7 @@ def create_spectral_figure(results_df: pd.DataFrame):
 
     colors = {'Poisson (light-tailed)': NSB_COLORS['nsb_subcritical'], 'Negative Binomial (heavy-tailed)': NSB_COLORS['nsb']}
     
-    # --- Panel (a): Overall Performance ---
+    # --- Overall Performance ---
     ax1 = axes[0]
     for dist_name, group in summary.groupby('Distribution'):
         ax1.plot(group['Max Radius'], group['ll_mean'], 'o-', color=colors[dist_name], label=dist_name)
@@ -158,7 +158,7 @@ def create_spectral_figure(results_df: pd.DataFrame):
     ax1.legend()
     ax1.grid(True, which="both", ls="--")
 
-    # --- Panel (b): Tail Learning Performance ---
+    # --- Tail Learning Performance ---
     ax2 = axes[1]
     for dist_name, group in summary.groupby('Distribution'):
         ax2.plot(group['Max Radius'], group['kl_mean'], 'o-', color=colors[dist_name], label=dist_name)

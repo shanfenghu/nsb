@@ -1,8 +1,8 @@
 """
-Plotting Utilities for NSB Paper Figures
+Plotting utilities for NSB experiment figures.
 
-This module provides utilities for creating consistent, publication-quality plots
-across all figures in the NSB paper. It includes:
+This module provides utilities for creating consistent, publication-quality plots.
+It includes:
 - Centralized color palette (NSB_COLORS) for consistent styling
 - Global plot style configuration (setup_plot_style)
 - Figure saving utilities (save_figure) for multiple formats
@@ -63,8 +63,8 @@ def save_figure(fig, filename: str, output_dir: str = "figures"):
     """
     Saves a matplotlib figure in multiple high-quality formats.
 
-    This function saves figures in both PDF (for paper inclusion) and PNG (for
-    easy viewing) formats at 300 DPI with tight bounding boxes. The output
+    This function saves figures in both PDF (vector) and PNG (raster) formats at
+    300 DPI with tight bounding boxes. The output
     directory is created if it doesn't exist.
 
     Args:
@@ -82,7 +82,7 @@ def save_figure(fig, filename: str, output_dir: str = "figures"):
     pdf_path = output_dir_path / f"{filename}.pdf"
     png_path = output_dir_path / f"{filename}.png"
 
-    # Save in PDF for the paper
+    # Save in PDF (vector format)
     fig.savefig(pdf_path, format='pdf', bbox_inches='tight', dpi=300)
     
     # Save in PNG for easy viewing

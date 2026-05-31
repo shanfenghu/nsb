@@ -1,7 +1,7 @@
 """
 NSB Task Module: "Who" (Source Attribution)
 
-This module implements Algorithm 3: One-Pass Patient Zero Attribution, which solves
+This module implements One-Pass Patient Zero Attribution, which solves
 the forensic question "Who started the outbreak?" by inferring the number of founders
 (patient zeros) Z from an observed cluster size C = n.
 
@@ -78,7 +78,7 @@ def attribute_source(
     prior_params: Optional[Dict] = None
 ) -> torch.Tensor:
     """
-    Implementation of Algorithm 3: One-Pass Patient Zero Attribution.
+    One-Pass Patient Zero Attribution via spectral inference.
 
     This function computes the posterior distribution P(Z=z | C=n) using the
     Neural Otter-Dwass identity and spectral methods. The algorithm:

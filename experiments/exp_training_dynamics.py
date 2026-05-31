@@ -8,9 +8,9 @@ outbreaktrees dataset. This script demonstrates:
 3. Model stability across multiple random seeds
 
 The figure shows:
-- Panel A: Training and test negative log-likelihood over epochs
-- Panel B: Test log-likelihood convergence (zoomed view of final epochs)
-- Panel C: Training stability across 5 random seeds (mean ± std)
+- Training and test negative log-likelihood over epochs
+- Test log-likelihood convergence (zoomed view of final epochs)
+- Training stability across 5 random seeds (mean ± std)
 
 This analysis validates that the model converges stably and generalizes well
 to unseen data.
@@ -356,7 +356,7 @@ def plot_training_dynamics(history: dict, stability: dict, config: dict):
     
     epochs = np.arange(1, config['nn_params']['epochs'] + 1)
     
-    # Panel A: Full Training and Test Loss Curves
+    # Training and test loss curves
     ax_a = fig.add_subplot(gs[0, 0])
     ax_a.plot(epochs, history['train_losses'], 'o-', color=NSB_COLORS['nsb'], 
               linewidth=2.5, markersize=4, label='Training Loss', alpha=0.8)
@@ -369,7 +369,7 @@ def plot_training_dynamics(history: dict, stability: dict, config: dict):
     ax_a.grid(True, alpha=0.3, linestyle='--')
     ax_a.set_xlim(0, config['nn_params']['epochs'] + 1)
     
-    # Panel B: Stability Across Seeds (formerly Panel C)
+    # Stability across random seeds
     ax_b = fig.add_subplot(gs[0, 1])
     mean_ll = stability['test_log_likelihoods_mean']
     std_ll = stability['test_log_likelihoods_std']
@@ -393,7 +393,7 @@ def plot_training_dynamics(history: dict, stability: dict, config: dict):
     ax_b.grid(True, alpha=0.3, linestyle='--')
     ax_b.set_xlim(0, config['nn_params']['epochs'] + 1)
     
-    # Panel C: Tail KL Divergence
+    # Tail KL divergence
     ax_c = fig.add_subplot(gs[0, 2])
     mean_tail_kl = stability['tail_kl_divergences_mean']
     std_tail_kl = stability['tail_kl_divergences_std']

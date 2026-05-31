@@ -52,8 +52,8 @@ class SpectralEngine:
         """
         Computes the full likelihood surface P(C=n | Z=z) for all z in {1..n}.
 
-        This implements the One-Pass Attribution algorithm (Algorithm 2) using the
-        Neural Otter-Dwass identity (Lemma 1). The algorithm leverages the duality
+        This implements the One-Pass Attribution algorithm using the
+        Neural Otter-Dwass identity. The algorithm leverages the duality
         between n-fold convolution and complex exponentiation in the spectral domain:
 
         1. Zero-padding to length L = 2^ceil(log2(n*(K-1)+1)) prevents aliasing
@@ -134,8 +134,8 @@ class SpectralEngine:
         Calculates the spectral radius ρ(W_h) of the recurrent weight matrix.
 
         The spectral radius is the magnitude of the largest eigenvalue, which
-        determines the stability and tail decay properties of the NSB process
-        (Theorem 6). For ρ < 1, the process is stable with exponential tail decay.
+        determines the stability and tail decay properties of the NSB process.
+        For ρ < 1, the process is stable with exponential tail decay.
         For ρ = 1, the process is at criticality with heavy tails.
 
         Args:

@@ -4,15 +4,15 @@ exp_task_how_next.py: Forensic Forecasting Dashboard
 Generates a 2x2 dashboard analyzing Task "How" (Entropy) and Task "Next" (Extinction/Volatility)
 for SARS/MERS transmission data using the Neural Stick-Breaking (NSB) model.
 
-Panels:
-    A. Extinction Phase Transition: Fixed-point stability analysis q = G(q) vs. R0
-    B. Forensic Entropy: Shannon entropy H(z|n) and attribution certainty vs. cluster size n
-    C. Branching Volatility: Offspring distribution tail probabilities (extinction vs. superspreading)
-    D. Spectral Energy Dissipation: Recursive PGF G_m(s) = G(G_{m-1}(s)) on the unit circle
+Subplots:
+    - Extinction Phase Transition: Fixed-point stability analysis q = G(q) vs. R0
+    - Forensic Entropy: Shannon entropy H(z|n) and attribution certainty vs. cluster size n
+    - Branching Volatility: Offspring distribution tail probabilities (extinction vs. superspreading)
+    - Spectral Energy Dissipation: Recursive PGF G_m(s) = G(G_{m-1}(s)) on the unit circle
 
 This dashboard complements exp_task_who.py by addressing the remaining forensic questions:
-- "How" certain can we be about source attribution? (Panel B)
-- "Next" what is the risk of extinction vs. superspreading? (Panels A, C, D)
+- "How" certain can we be about source attribution? (entropy analysis)
+- "Next" what is the risk of extinction vs. superspreading? (extinction, volatility, and PGF recursion)
 """
 
 import torch
@@ -166,7 +166,7 @@ def scale_offspring_distribution(p_dist: torch.Tensor, scale_factor: float) -> t
     binary search to achieve the target R0 = scale_factor * R0_original.
     
     This preserves the shape of the distribution while adjusting the mean, enabling
-    sensitivity analysis across different R0 values (e.g., for Panel A).
+    sensitivity analysis across different R0 values (e.g., for phase-transition plots).
     
     Args:
         p_dist: Original offspring probability distribution
@@ -227,7 +227,7 @@ def compute_generation_pgf(p_dist: torch.Tensor, m: int, s_points: np.ndarray) -
     
     This represents the PGF of the total number of individuals in generation m,
     starting from a single founder. As m increases, G_m(s) contracts toward the
-    extinction probability q = G(q) (Panel D visualization).
+    extinction probability q = G(q) (spectral energy dissipation plot).
     
     Args:
         p_dist: Offspring probability distribution p_k
@@ -261,11 +261,11 @@ def plot_forecasting_dashboard(p_nsb: torch.Tensor, pathogen_name: str = "SARS/M
     """
     Creates the 2x2 Forensic Forecasting Dashboard for Task "How" and "Next".
     
-    This function generates four panels that address:
-    - Panel A: How does extinction probability depend on R0? (Phase transition analysis)
-    - Panel B: How certain can we be about source attribution? (Entropy analysis)
-    - Panel C: What is the risk of extinction vs. superspreading? (Tail probabilities)
-    - Panel D: How does spectral information decay across generations? (PGF recursion)
+    This function generates four subplots that address:
+    - How does extinction probability depend on R0? (Phase transition analysis)
+    - How certain can we be about source attribution? (Entropy analysis)
+    - What is the risk of extinction vs. superspreading? (Tail probabilities)
+    - How does spectral information decay across generations? (PGF recursion)
     
     Args:
         p_nsb: Learned offspring distribution from NSB model (normalized)

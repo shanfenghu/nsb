@@ -108,7 +108,7 @@ def create_moment_figure(all_mean_series: np.ndarray, all_variance_series: np.nd
     n_steps = CONFIG['unroll_steps']
     x_axis = np.arange(1, n_steps + 1)
 
-    # --- Panel (a): Mean Convergence ---
+    # --- Mean Convergence ---
     ax1 = axes[0]
     mean_of_means = np.mean(all_mean_series, axis=0)
     std_of_means = np.std(all_mean_series, axis=0)
@@ -126,7 +126,7 @@ def create_moment_figure(all_mean_series: np.ndarray, all_variance_series: np.nd
     ax1.set_xscale('log')
     ax1.grid(True, which="both", ls="--")
 
-    # --- Panel (b): Variance Divergence ---
+    # --- Variance Divergence ---
     ax2 = axes[1]
     mean_of_vars = np.mean(all_variance_series, axis=0)
     std_of_vars = np.std(all_variance_series, axis=0)

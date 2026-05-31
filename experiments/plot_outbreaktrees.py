@@ -294,7 +294,7 @@ def create_real_world_figure():
         'Poisson': 'poisson'
     }
     
-    # --- Panel (a): Overall Fit ---
+    # --- Overall Fit ---
     ax1 = axes[0]
     max_val_hist = int(np.percentile(test_data, 98))
     bins = np.arange(max_val_hist + 2) - 0.5
@@ -366,7 +366,7 @@ def create_real_world_figure():
     ax1.set_xlabel("Offspring Count (k)"); ax1.set_ylabel("Probability (log scale)"); ax1.legend()
     ax1.set_yscale('log') 
 
-    # --- Panel (b): Log-Log Tail Analysis ---
+    # --- Log-Log Tail Analysis ---
     ax2 = axes[1]
     counts, freqs = np.unique(test_data, return_counts=True)
     probs = freqs / len(test_data)
@@ -398,7 +398,7 @@ def create_real_world_figure():
     ax2.set_xlabel("Offspring Count (k) (log scale)"); ax2.set_ylabel("Probability (log scale)")
     ax2.set_xscale('log'); ax2.set_yscale('log'); ax2.legend()
 
-    # --- Panel (c): Rank-Frequency Analysis ---
+    # --- Rank-Frequency Analysis ---
     ax3 = axes[2]
     sorted_probs = np.sort(probs)[::-1]
     ranks = np.arange(1, len(sorted_probs) + 1)
@@ -486,7 +486,7 @@ def create_real_world_figure():
     axins.set_title("NSB's Learned Eigenvalues", fontsize=10)
     axins.set_aspect('equal', adjustable='box')
 
-    # --- Panel (d): Dynamics Visualization ---
+    # --- Dynamics Visualization ---
     ax4 = axes[3]
     # Use the NSB model already trained for panels a-c (from models_to_plot)
     # This ensures consistency across all panels
@@ -554,7 +554,7 @@ def create_real_world_figure():
     
     print(f"Norm ratio stabilizes at k={k_stable}, ratio={h_norm_ratio[k_stable]:.4f}")
     
-    # Panel (d): Dual-axis time series visualization
+    # Dual-axis time series visualization
     # Left Y-axis: break proportion (π_k) - shows stick-conservation mechanism
     # Right Y-axis: hidden state norm ratio (||h_k|| / ||h_{k-1}||) - shows hidden state evolution
     # X-axis: unroll step (k)

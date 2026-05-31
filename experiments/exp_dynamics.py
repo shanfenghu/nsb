@@ -89,7 +89,7 @@ def create_dynamics_figure(h_trajectory: np.ndarray, pi_trajectory: np.ndarray):
     fig, axes = plt.subplots(1, 2, figsize=(14, 6.5), constrained_layout=True)
     # fig.suptitle("The Learned Dynamics of Stick Conservation for Superspreading", fontsize=18, weight='bold')
 
-    # --- Panel (a): The Learned State-Space Manifold ---
+    # --- Learned State-Space Manifold ---
     ax1 = axes[0]
     # --- MODIFICATION: Add faint connecting lines ---
     ax1.plot(h_2d[:, 0], h_2d[:, 1], '-', color='gray', linewidth=0.5, alpha=0.5, zorder=1)
@@ -109,7 +109,7 @@ def create_dynamics_figure(h_trajectory: np.ndarray, pi_trajectory: np.ndarray):
     ax1.set_xticks([])
     ax1.set_yticks([])
 
-    # --- Panel (b): The Stick-Conservation Mechanism ---
+    # --- Stick-Conservation Mechanism ---
     ax2 = axes[1]
     # --- MODIFICATION: Add faint connecting lines ---
     ax2.plot(h_2d[:, 0], h_2d[:, 1], '-', color='gray', linewidth=0.5, alpha=0.5, zorder=1)

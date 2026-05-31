@@ -128,7 +128,7 @@ def create_learning_curve_figure(results_df: pd.DataFrame):
 
     train_sizes = summary['Train Size']
 
-    # --- Panel (a): Overall Performance ---
+    # --- Overall Performance ---
     ax1 = axes[0]
     ax1.plot(train_sizes, summary['ll_mean'], 'o-', color=NSB_COLORS['nsb'])
     ax1.fill_between(
@@ -143,7 +143,7 @@ def create_learning_curve_figure(results_df: pd.DataFrame):
     ax1.set_xscale('log')
     ax1.grid(True, which="both", ls="--")
 
-    # --- Panel (b): Tail Performance ---
+    # --- Tail Performance ---
     ax2 = axes[1]
     ax2.plot(train_sizes, summary['kl_mean'], 'o-', color=NSB_COLORS['nsb_subcritical'])
     ax2.fill_between(
