@@ -1,35 +1,13 @@
 # Neural Stick-Breaking for Cascade Forensics
 
-![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)
+This repository contains the official Python implementation and experimental code for the paper:
 
-Official implementation of **Neural Stick-Breaking for Cascade Forensics** (KDD 2026).
+**Neural Stick-Breaking for Cascade Forensics**  
+*In Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining V.2 (KDD ’26), August 09–13, 2026, Jeju Island, Republic of Korea.*
 
 ## Abstract
 
-Characterising transmission laws in epidemic cascades is essential for outbreak forensics, yet neural models with finite support fail to capture heavy-tailed phenomena like superspreading. We propose the *Neural Stick-Breaking (NSB)* process, a neuro-symbolic-spectral duality that learns infinite-support offspring distributions via a recurrent mapping with theoretical guarantees. Beyond density estimation, the NSB enables exact probabilistic inference of cascade histories in $O(nK \log nK)$ via the *Fast Fourier Transform (FFT)*, achieving sub-second efficiency for massive clusters ($n=10^5$). This allows us to solve three forensic tasks at scale:
-
-- **Source Attribution** — identifying patient-zeros
-- **Structural Fingerprinting** — characterising information dissipation
-- **Risk Assessment** — analytic extinction
-
-Empirically, the NSB and its gated variants significantly outperform neural baselines and classical estimators on the `outbreaktrees` (SARS/MERS-Cov) dataset for cascade modelling. For an out-of-sample `Saudi Arabia 2019 MERS` outbreak, our forensic analysis identifies a critical Signal-to-Noise Crossover at cluster size $n \approx 4$ and an Information Horizon at $n \approx 50$, uncovering the fundamental limits of founder identifiability in real-world outbreaks. By leveraging its neuro-symbolic-spectral duality, the NSB provides a rigorous, scalable framework for scientific discovery in cascade forensics.
-
-## Citation
-
-If you use this code in your research, please cite:
-
-```bibtex
-@inproceedings{hu2026nsb,
-  title={Neural Stick-Breaking for Cascade Forensics},
-  author={Hu, Shanfeng},
-  booktitle={Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD '26)},
-  year={2026},
-  pages={},
-  doi={10.1145/3770855.3817623},
-  isbn={979-8-4007-2259-2/2026/08}
-}
-```
+Characterising transmission laws in epidemic cascades is essential for outbreak forensics, yet neural models with finite support fail to capture heavy-tailed phenomena like superspreading. We propose the Neural Stick-Breaking (NSB) process, a neuro-symbolic-spectral duality that learns infinite-support offspring distributions via a recurrent mapping with theoretical guarantees. Beyond density estimation, the NSB enables exact probabilistic inference of cascade histories in $O(nK \log nK)$ via the Fast Fourier Transform (FFT), achieving sub-second efficiency for massive clusters ($n=10^5$). This allows us to solve three forensic tasks at scale: Source Attribution (identifying patient-zeros), Structural Fingerprinting (characterising information dissipation), and Risk Assessment (analytic extinction). Empirically, the NSB and its gated variants significantly outperform neural baselines and classical estimators on the outbreaktrees (SARS/MERS-Cov) dataset for cascade modelling. For an out-of-sample Saudi Arabia 2019 MERS outbreak, our forensic analysis identifies a critical Signal-to-Noise Crossover at cluster size $n \approx 4$ and an Information Horizon at $n \approx 50$, uncovering the fundamental limits of founder identifiability in real-world outbreaks. By leveraging its neuro-symbolic-spectral duality, the NSB provides a rigorous, scalable framework for scientific discovery in cascade forensics. The source code is available at https://github.com/shanfenghu/nsb
 
 ## Features
 
